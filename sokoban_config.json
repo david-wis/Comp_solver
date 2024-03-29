@@ -1,0 +1,10 @@
+{
+    "method": "A*",
+    "heuristic": "manhattan+p",
+    "level": "levels/lvl2.txt",
+    "optimizations": {
+        "corners": true,
+        "axis": true,
+        "dual": true
+    }
+}
