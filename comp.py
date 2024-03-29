@@ -27,33 +27,37 @@ class EquivalentExpressions:
         self.long = long
         self.custom_name = custom_name 
     
-    def __attempt_replace(expression, exp_to_replace, exp_to_replace_with, replace_short=False):
-        index = expression.find(exp_to_replace)
+    def __attempt_replace(expression, old_exp, new_exp):
+        index = expression.find(old_exp)
+        old_atomic = old_exp.find(' ') == -1
+        new_atomic = new_exp.find(' ') == -1
+
         if index == -1:
             return expression, False
 
         # If the expression is at the beginning of the string, the precedence makes the braces unnecessary
-        if index == 0:
-            return expression.replace(exp_to_replace, exp_to_replace_with, 1), True
+        if index == 0 or (old_atomic and new_atomic):
+            return expression.replace(old_exp, new_exp, 1), True
 
         # If the expression is an atomic expansion (and it's not at the beginning), braces are needed 
-        if replace_short:
-            return expression.replace(exp_to_replace, f"({exp_to_replace_with})", 1), True
-
+        if old_atomic:
+            return expression.replace(old_exp, f"({new_exp})", 1), True
+        
+        # old is not atomic
         if expression[index - 1] == "(":
-            if expression[index + len(exp_to_replace)] == ")" and not replace_short:
-                return expression.replace(f"({exp_to_replace})", exp_to_replace_with, 1), True
-            return expression.replace(exp_to_replace, exp_to_replace_with, 1), True
+            if expression[index + len(old_exp)] == ")" and new_atomic:
+                return expression.replace(f"({old_exp})", new_exp, 1), True
+            return expression.replace(old_exp, new_exp, 1), True
 
         return expression, False
 
 
     def expression_replace(self, expression):
-        exp, found = EquivalentExpressions.__attempt_replace(expression, self.short, self.long, replace_short=True)
+        exp, found = EquivalentExpressions.__attempt_replace(expression, self.short, self.long)
         if found:
             return exp, True
 
-        exp, found = EquivalentExpressions.__attempt_replace(expression, self.long, self.short, replace_short=False)
+        exp, found = EquivalentExpressions.__attempt_replace(expression, self.long, self.short)
         if found:
             return exp, True
 
