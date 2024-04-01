@@ -8,12 +8,16 @@ from search_methods import bfs, dfs, greedy, astar
 from functools import partial
 from datetime import datetime
 import os
-
+import heuristics as h
 methods = {
     "dfs": dfs.search,
     "bfs": bfs.search,
     "greedy": greedy.search,
     "A*": astar.search
+}
+heuristics = {
+    "by_length": h.by_length,
+    "by_constant_weight": h.by_constant_weight,
 }
 
 # heuristics = {
@@ -25,7 +29,8 @@ methods = {
 #     "max_manhattan+p": max_heuristic(manhattan_heuristic, partial(mdp_heuristic, distance_function=manhattan_distance))
 # }
 
-search = methods["bfs"]
+search = methods["greedy"]
+heuristic = heuristics["by_constant_weight"]
 
 def verify_correctness(seq):
     print(f"\nTest the types in ghci:")
@@ -38,12 +43,12 @@ def verify_correctness(seq):
 
 
 def single():
-    initial_state = CompositionState("c12", "c8")
+    initial_state = CompositionState("c10", "c6")
 
     initial_node = CompositionNode(initial_state, None, None, 0)
 
     begin_time = datetime.now()
-    (solution, visited, border) = search(initial_node)
+    (solution, visited, border) = search(initial_node, heuristic)
     finish_time = datetime.now()
 
 
@@ -57,8 +62,8 @@ def single():
     print(f"solution length = {len(solution.get_sequence())}")
     seq = solution.get_sequence()
     print(f"Solution:\n{initial_state.exp}\n", "\n".join(map(lambda x: f"=\t\t\t\t{x[0]}\n({x[1]})", seq)))
+    print("lenght: ", len(seq))
     verify_correctness(seq)
-
 
 
 if __name__ == "__main__":

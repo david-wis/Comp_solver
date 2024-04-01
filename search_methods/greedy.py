@@ -17,7 +17,7 @@ def search(initial_node, h=None):
 
         visited.add(current)
 
-        new_nodes = [x for x in current.expand() if x not in visited and x not in border_set]
+        new_nodes = {x for x in current.expand() if x not in visited and x not in border_set}
         for node in new_nodes:
             # node.h = h(node)
             heapq.heappush(border, node)

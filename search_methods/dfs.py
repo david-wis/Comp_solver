@@ -12,7 +12,7 @@ def search(initial_node, h=None):
 
         visited.add(current)
 
-        new_nodes = [x for x in current.expand() if x not in visited and x not in border_set]
+        new_nodes = {x for x in current.expand() if x not in visited and x not in border_set}
         border.extend(new_nodes)
         border_set.update(new_nodes)
     return (None, visited, border)

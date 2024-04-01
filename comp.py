@@ -20,6 +20,43 @@ class CompositionState(object):
     def is_solution(self):
         return self.exp == self.expec_exp 
 
+def get_token(expression, start_index):
+    current_index = start_index
+    if expression[current_index] == ' ': raise ValueError("Invalid expression")
+    if expression[current_index] == '(':
+        scope_count = 1
+        while scope_count > 0 and current_index < len(expression):
+            current_index += 1
+            scope_count += (expression[current_index] == '(') - (expression[current_index] == ')')
+        if scope_count != 0:
+            raise ValueError("Invalid parenthesis")
+        current_index += 1        
+    else:
+        while current_index < len(expression) and expression[current_index] != ')' and expression[current_index] != ' ':
+            current_index += 1
+    return expression[start_index:current_index], start_index, current_index
+
+def get_all_subexpressions(expression):
+    subexpressions = []
+    index = 0
+    while index < len(expression):
+        if index == 0 or expression[index] == '(' or expression[index - 1] == ' ' or expression[index - 1] == '(':
+            token, start, end = get_token(expression, index)
+            subexpressions.append(token)
+        index += 1
+        
+    return subexpressions
+
+    
+def normalize_expression(expression):
+    while expression.startswith("("):
+        _, _, end = get_token(expression, 0)
+        expression = expression[1:end - 1] + expression[end:]
+    index = expression.find("((")
+    while (index := expression.find("((", index)) != -1:
+        _, _, end = get_token(expression, index + 1)
+        expression = expression[:index] + expression[index+1:end-1]+ expression[end:]
+    return expression
 
 class EquivalentExpressions:
     def __init__(self, short, long, custom_name=None):
@@ -32,7 +69,7 @@ class EquivalentExpressions:
         old_atomic = old_exp.find(' ') == -1
         new_atomic = new_exp.find(' ') == -1
 
-        if index == -1:
+        if index == -1 or (index+len(old_exp)+1 < len(expression) and expression[index + len(old_exp)] not in [' ', ')']):
             return expression, False
 
         # If the expression is at the beginning of the string, the precedence makes the braces unnecessary
@@ -44,8 +81,8 @@ class EquivalentExpressions:
             return expression.replace(old_exp, f"({new_exp})", 1), True
         
         # old is not atomic
-        if expression[index - 1] == "(":
-            if expression[index + len(old_exp)] == ")" and new_atomic:
+        if expression[index-1] == '(':
+            if expression[index + len(old_exp)] == ')' and new_atomic:
                 return expression.replace(f"({old_exp})", new_exp, 1), True
             return expression.replace(old_exp, new_exp, 1), True
 
@@ -55,20 +92,19 @@ class EquivalentExpressions:
     def expression_replace(self, expression):
         exp, found = EquivalentExpressions.__attempt_replace(expression, self.short, self.long)
         if found:
-            return exp, True
+            return normalize_expression(exp), True
 
         exp, found = EquivalentExpressions.__attempt_replace(expression, self.long, self.short)
         if found:
-            return exp, True
+            return normalize_expression(exp), True
 
         return expression, False 
     
     def __str__(self):
-        return f"def {self.short}" if self.custom_name is None else self.custom_name
+        return f"e/c {self.short}" if self.custom_name is None else self.custom_name
 
     def __repr__(self):
         return str(self)
-
 class CompositionDefinition:
     def __init__(self):
         pass
@@ -95,28 +131,57 @@ class CompositionDefinition:
 
     def __repr__(self):
         return str(self)
+    
+def expression_ended(expression, index):
+    return index >= len(expression) or expression[index] == ')'
+
+class CEvaluationDefinition:
+    PLACEHOLDER = ';'
+
+    def __init__(self, composer, transformation):
+        self.composer = composer
+        self.transformation = re.sub("[0-9]", CEvaluationDefinition.PLACEHOLDER, transformation)
+        self.arg_count = transformation.replace('(', '').replace(')','').count(' ') + 1
+    
+
+    def expression_replace(self, expression):
+        expression = f"({expression})"
+        start_index = 0
+        while (index := expression.find(f"({self.composer} ", start_index)) != -1:
+            substitution = self.transformation
+            target, start, end = get_token(expression, index)
+            index += len(self.composer) + 2 #len(f"({self.composer} ")
+            start_index = index
+            args = []
+            while len(args) < self.arg_count and index < end - 1: #end -1 = ')'
+                arg, _, index = get_token(expression, index)
+                index += 1
+                args.append(arg)
+            if len(args) == self.arg_count:
+                index -= 1
+                if expression[index] == ' ':
+                    start += 1
+                    end = index
+                for arg in args:    
+                    substitution = substitution.replace(CEvaluationDefinition.PLACEHOLDER, arg, 1)
+                result = expression[:start] + substitution + expression[end:]
+                return normalize_expression(result), True
+        return expression[1:-1], False
+                
+
+    def __str__(self):
+        return f"def {self.composer}"
+    
+    def __repr__(self):
+        return str(self)
 
 
-
-known_actions = [
-    # TODO: List comprehension?
-    EquivalentExpressions("c2", "c1 c1"),
-    EquivalentExpressions("c3", "c2 c1"),
-    EquivalentExpressions("c4", "c3 c1"),
-    EquivalentExpressions("c5", "c4 c1"),
-    EquivalentExpressions("c6", "c5 c1"),
-    EquivalentExpressions("c7", "c6 c1"),
-    EquivalentExpressions("c8", "c7 c1"),
-    EquivalentExpressions("c9", "c8 c1"),
-    EquivalentExpressions("c10", "c9 c1"),
-    EquivalentExpressions("c11", "c10 c1"),
-    EquivalentExpressions("c12", "c11 c1"),
-    EquivalentExpressions("c13", "c12 c1"),
-    EquivalentExpressions("c14", "c13 c1"),
-    EquivalentExpressions("c15", "c14 c1"), 
-    EquivalentExpressions("c16", "c15 c1"),
+known_actions = [ EquivalentExpressions(f"c{i+1}", f"c{i} c1") for i in range(1, 32)] + [
     EquivalentExpressions("c8", "c2 c3", "lemma 3"),
-    CompositionDefinition()
+    CompositionDefinition(),
+    CEvaluationDefinition("c1", "(1 (2 3))"),
+    CEvaluationDefinition("c2", "(1 2 (3 4))"),
+    CEvaluationDefinition("c3", "(1 (2 3 4))"),
 ]
 
 
@@ -147,3 +212,35 @@ class CompositionNode(Node):
             sequence.insert(0, (str(current.action), current.state.exp))
             current = current.parent
         return sequence
+    
+if __name__ == "__main__":
+
+    c2 = EquivalentExpressions("c2", "c1 c1")
+    assert (c2.expression_replace("c1 (c1 c1) c1 c1 c1 c1") == ("c1 c2 c1 c1 c1 c1", True)), f"Got: {c2.expression_replace('c1 (c1 c1) c1 c1 c1 c1')}"
+    #normalize expression
+    assert (normalize_expression("a b") == "a b"), f"Got: {normalize_expression('a b')}"
+    assert (normalize_expression("(a b)") == "a b"), f"Got: {normalize_expression('(a b)')}"
+    assert (normalize_expression("((a b) c)") == "a b c"), f"Got: {normalize_expression('((a b) c)')}"
+    assert (normalize_expression("((a b) (c d))") == "a b (c d)"), f"Got: {normalize_expression('((a b) (c d))')}"
+    assert (normalize_expression("a (b c)") == "a (b c)"), f"Got: {normalize_expression('a (b c)')}"
+    assert (normalize_expression("(((((a b) c) d) e) f) h") == "a b c d e f h"), f"Got: {normalize_expression('(((((a b) c) d) e) f) h')}"
+    assert (normalize_expression("a (b (c (d (e f))))") == "a (b (c (d (e f))))"), f"Got: {normalize_expression('a (b (c (d (e f))))')}"
+    assert (normalize_expression("a (b c) (d e) (e f)") == "a (b c) (d e) (e f)"), f"Got: {normalize_expression('a (b c) (d e) (e f)')}"
+    assert (normalize_expression("a ((b c) d) ((e f) g) (h (i j))") == "a (b c d) (e f g) (h (i j))"), f"Got: {normalize_expression('a ((b c) d) ((e f) g) (h (i j))')}"
+    assert (normalize_expression("a b (c ((d e) f) ((g h) (i j)))") == "a b (c (d e f) (g h (i j)))"), f"Got: {normalize_expression('a b (c ((d e) f) ((g h) (i j)))')}"
+    #ceval
+    ceval = CEvaluationDefinition("c1", "(1 (2 3))")
+    assert (ceval.expression_replace("c1 x y") == ("c1 x y", False)), f"Got: {ceval.expression_replace('c1 x y')}"
+    assert (ceval.expression_replace("c1 x (y z)") == ("c1 x (y z)", False)), f"Got: {ceval.expression_replace('c1 x (y z)')}"
+    assert (ceval.expression_replace("c1 x y z") == ("x (y z)", True)), f"Got: {ceval.expression_replace('c1 x y z')}"
+    assert (ceval.expression_replace("c1 (f x) (g y) (h z)") == ("f x (g y (h z))", True)), f"Got: {ceval.expression_replace('c1 (f x) (g y) (h z)')}"
+    assert (ceval.expression_replace("c1 f (g (x y)) z") == ("f (g (x y) z)", True)), f"Got: {ceval.expression_replace('c1 f (g (x y)) z')}"
+    assert (ceval.expression_replace("c1 f g x y") == ("f (g x) y", True)), f"Got: {ceval.expression_replace('c1 f g x y')}"
+    assert (ceval.expression_replace("c2 (c1 f g x y)") == ("c2 (f (g x) y)", True)), f"Got: {ceval.expression_replace('c2 (c1 f g x y)')}"
+    assert (ceval.expression_replace("c2 (c1 f g) c1") == ("c2 (c1 f g) c1", False)), f"Got: {ceval.expression_replace('c2 (c1 f g) c1')}"
+
+    beval = CEvaluationDefinition("c2", "(1 2 (3 4))")
+    assert (beval.expression_replace("c2 f g x") == ("c2 f g x", False)), f"Got: {beval.expression_replace('c2 f g x')}"
+    assert (beval.expression_replace("c2 f x (g y)") == ("c2 f x (g y)", False)), f"Got: {beval.expression_replace('c2 f x (g y)')}"
+    assert (beval.expression_replace("c2 f x g y") == ("f x (g y)", True)), f"Got: {beval.expression_replace('c2 f x g y')}"
+    assert (beval.expression_replace("c2 f x g y z") == ("f x (g y) z", True)), f"Got: {beval.expression_replace('c2 f x g y z')}"
