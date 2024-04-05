@@ -70,41 +70,41 @@ class EquivalentExpressions:
         new_atomic = new_exp.find(' ') == -1
 
         if index == -1 or (index+len(old_exp)+1 < len(expression) and expression[index + len(old_exp)] not in [' ', ')']):
-            return expression, False
+            return []
 
         # If the expression is at the beginning of the string, the precedence makes the braces unnecessary
         if index == 0 or (old_atomic and new_atomic):
-            return expression.replace(old_exp, new_exp, 1), True
+            return [expression.replace(old_exp, new_exp, 1)]
 
         # If the expression is an atomic expansion (and it's not at the beginning), braces are needed 
         if old_atomic:
-            return expression.replace(old_exp, f"({new_exp})", 1), True
+            return [expression.replace(old_exp, f"({new_exp})", 1)]
         
         # old is not atomic
         if expression[index-1] == '(':
             if expression[index + len(old_exp)] == ')' and new_atomic:
-                return expression.replace(f"({old_exp})", new_exp, 1), True
-            return expression.replace(old_exp, new_exp, 1), True
+                return [expression.replace(f"({old_exp})", new_exp, 1)]
+            return [expression.replace(old_exp, new_exp, 1)]
 
-        return expression, False
+        return []
 
 
     def expression_replace(self, expression):
-        exp, found = EquivalentExpressions.__attempt_replace(expression, self.short, self.long)
-        if found:
-            return normalize_expression(exp), True
+        children = EquivalentExpressions.__attempt_replace(expression, self.short, self.long)
+        if len(children) > 0:
+            return [normalize_expression(c) for c in children]
 
-        exp, found = EquivalentExpressions.__attempt_replace(expression, self.long, self.short)
-        if found:
-            return normalize_expression(exp), True
-
-        return expression, False 
+        children = EquivalentExpressions.__attempt_replace(expression, self.long, self.short)
+        if len(children) > 0:
+            return [normalize_expression(c) for c in children]
+        return [] 
     
     def __str__(self):
         return f"e/c {self.short}" if self.custom_name is None else self.custom_name
 
     def __repr__(self):
         return str(self)
+    
 class CompositionDefinition:
     def __init__(self):
         pass
@@ -115,16 +115,16 @@ class CompositionDefinition:
         if result:
             expression = re.sub(r"(^c1 c[0-9]+ c[0-9]+ c[0-9]+)|(\(c1 c[0-9]+ c[0-9]+ c[0-9]+)", 
                 f"{result.group().replace('c1 ', '', 1).replace(' ', ' (', 1)})", expression)
-            return expression, True
+            return [normalize_expression(expression)]
         
         # cx (cy cz) -> c1 cx cy cz
         # TODO: Braces case
         result = re.search(r"^c[0-9]+ \(c[0-9]+ c[0-9]+\)", expression)
         if result:
             expression = re.sub(r"c[0-9]+ \(c[0-9]+ c[0-9]+\)", f"c1 {result.group().replace('(', '', 1).replace(')', '', 1)}", expression)
-            return expression, True
+            return [normalize_expression(expression)]
 
-        return expression, False
+        return []
 
     def __str__(self):
         return "def (.)"
@@ -145,6 +145,7 @@ class CEvaluationDefinition:
     
 
     def expression_replace(self, expression):
+        children = []
         expression = f"({expression})"
         start_index = 0
         while (index := expression.find(f"({self.composer} ", start_index)) != -1:
@@ -165,8 +166,8 @@ class CEvaluationDefinition:
                 for arg in args:    
                     substitution = substitution.replace(CEvaluationDefinition.PLACEHOLDER, arg, 1)
                 result = expression[:start] + substitution + expression[end:]
-                return normalize_expression(result), True
-        return expression[1:-1], False
+                children.append(normalize_expression(result))
+        return children
                 
 
     def __str__(self):
@@ -176,12 +177,31 @@ class CEvaluationDefinition:
         return str(self)
 
 
+class SimpleEta:
+    def __init__(self):
+        pass
+
+    def expression_replace(self, expression):
+        if expression.endswith(' f'):
+            return [expression[:-2]]
+        elif expression.find(' f ') == -1:
+            return [expression + ' f']
+        return []
+    
+    def __str__(self):
+        return f"eta"
+    
+    def __repr__(self):
+        return str(self)
+
+
 known_actions = [ EquivalentExpressions(f"c{i+1}", f"c{i} c1") for i in range(1, 32)] + [
-    EquivalentExpressions("c8", "c2 c3", "lemma 3"),
+    #EquivalentExpressions("c8", "c2 c3", "lemma 3"),
     CompositionDefinition(),
     CEvaluationDefinition("c1", "(1 (2 3))"),
     CEvaluationDefinition("c2", "(1 2 (3 4))"),
     CEvaluationDefinition("c3", "(1 (2 3 4))"),
+    SimpleEta()
 ]
 
 
@@ -192,11 +212,11 @@ class CompositionNode(Node):
     def expand(self):
         if self.cost > 10000:
             return []
-
+        print(self.state)
         for action in known_actions:
-            new_state, found = action.expression_replace(self.state.exp)
-            if found:
-                yield CompositionNode(CompositionState(new_state, self.state.expec_exp), self, action, self.cost + 1, self.comparator)
+            new_states = action.expression_replace(self.state.exp)
+            for s in new_states:
+                yield CompositionNode(CompositionState(s, self.state.expec_exp), self, action, self.cost + 1, self.comparator)
             
 
     def __str__(self):
@@ -216,7 +236,7 @@ class CompositionNode(Node):
 if __name__ == "__main__":
 
     c2 = EquivalentExpressions("c2", "c1 c1")
-    assert (c2.expression_replace("c1 (c1 c1) c1 c1 c1 c1") == ("c1 c2 c1 c1 c1 c1", True)), f"Got: {c2.expression_replace('c1 (c1 c1) c1 c1 c1 c1')}"
+    assert (c2.expression_replace("c1 (c1 c1) c1 c1 c1 c1")[0] == ("c1 c2 c1 c1 c1 c1")), f"Got: {c2.expression_replace('c1 (c1 c1) c1 c1 c1 c1')}"
     #normalize expression
     assert (normalize_expression("a b") == "a b"), f"Got: {normalize_expression('a b')}"
     assert (normalize_expression("(a b)") == "a b"), f"Got: {normalize_expression('(a b)')}"
@@ -230,17 +250,17 @@ if __name__ == "__main__":
     assert (normalize_expression("a b (c ((d e) f) ((g h) (i j)))") == "a b (c (d e f) (g h (i j)))"), f"Got: {normalize_expression('a b (c ((d e) f) ((g h) (i j)))')}"
     #ceval
     ceval = CEvaluationDefinition("c1", "(1 (2 3))")
-    assert (ceval.expression_replace("c1 x y") == ("c1 x y", False)), f"Got: {ceval.expression_replace('c1 x y')}"
-    assert (ceval.expression_replace("c1 x (y z)") == ("c1 x (y z)", False)), f"Got: {ceval.expression_replace('c1 x (y z)')}"
-    assert (ceval.expression_replace("c1 x y z") == ("x (y z)", True)), f"Got: {ceval.expression_replace('c1 x y z')}"
-    assert (ceval.expression_replace("c1 (f x) (g y) (h z)") == ("f x (g y (h z))", True)), f"Got: {ceval.expression_replace('c1 (f x) (g y) (h z)')}"
-    assert (ceval.expression_replace("c1 f (g (x y)) z") == ("f (g (x y) z)", True)), f"Got: {ceval.expression_replace('c1 f (g (x y)) z')}"
-    assert (ceval.expression_replace("c1 f g x y") == ("f (g x) y", True)), f"Got: {ceval.expression_replace('c1 f g x y')}"
-    assert (ceval.expression_replace("c2 (c1 f g x y)") == ("c2 (f (g x) y)", True)), f"Got: {ceval.expression_replace('c2 (c1 f g x y)')}"
-    assert (ceval.expression_replace("c2 (c1 f g) c1") == ("c2 (c1 f g) c1", False)), f"Got: {ceval.expression_replace('c2 (c1 f g) c1')}"
+    assert (len(ceval.expression_replace("c1 x y")) == 0), f"Got: {ceval.expression_replace('c1 x y')}"
+    assert (len(ceval.expression_replace("c1 x (y z)")) == 0), f"Got: {ceval.expression_replace('c1 x (y z)')}"
+    assert (ceval.expression_replace("c1 x y z")[0] == "x (y z)"), f"Got: {ceval.expression_replace('c1 x y z')}"
+    assert (ceval.expression_replace("c1 (f x) (g y) (h z)")[0] == "f x (g y (h z))"), f"Got: {ceval.expression_replace('c1 (f x) (g y) (h z)')}"
+    assert (ceval.expression_replace("c1 f (g (x y)) z")[0] == "f (g (x y) z)"), f"Got: {ceval.expression_replace('c1 f (g (x y)) z')}"
+    assert (ceval.expression_replace("c1 f g x y")[0] == "f (g x) y"), f"Got: {ceval.expression_replace('c1 f g x y')}"
+    assert (ceval.expression_replace("c2 (c1 f g x y)")[0] == "c2 (f (g x) y)"), f"Got: {ceval.expression_replace('c2 (c1 f g x y)')}"
+    assert (len(ceval.expression_replace("c2 (c1 f g) c1")) == 0), f"Got: {ceval.expression_replace('c2 (c1 f g) c1')}"
 
     beval = CEvaluationDefinition("c2", "(1 2 (3 4))")
-    assert (beval.expression_replace("c2 f g x") == ("c2 f g x", False)), f"Got: {beval.expression_replace('c2 f g x')}"
-    assert (beval.expression_replace("c2 f x (g y)") == ("c2 f x (g y)", False)), f"Got: {beval.expression_replace('c2 f x (g y)')}"
-    assert (beval.expression_replace("c2 f x g y") == ("f x (g y)", True)), f"Got: {beval.expression_replace('c2 f x g y')}"
-    assert (beval.expression_replace("c2 f x g y z") == ("f x (g y) z", True)), f"Got: {beval.expression_replace('c2 f x g y z')}"
+    assert (len(beval.expression_replace("c2 f g x")) == 0), f"Got: {beval.expression_replace('c2 f g x')}"
+    assert (len(beval.expression_replace("c2 f x (g y)")) == 0), f"Got: {beval.expression_replace('c2 f x (g y)')}"
+    assert (beval.expression_replace("c2 f x g y")[0] == "f x (g y)"), f"Got: {beval.expression_replace('c2 f x g y')}"
+    assert (beval.expression_replace("c2 f x g y z")[0] == "f x (g y) z"), f"Got: {beval.expression_replace('c2 f x g y z')}"

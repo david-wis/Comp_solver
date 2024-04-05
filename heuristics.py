@@ -11,4 +11,4 @@ def weight(expression):
     return w
 
 def by_constant_weight(node):
-    return abs(weight(node.state.exp) - weight(node.state.expec_exp))
+    return abs(weight(node.state.exp) - weight(node.state.expec_exp)) + node.state.exp.count("f")

@@ -43,7 +43,7 @@ def verify_correctness(seq):
 
 
 def single():
-    initial_state = CompositionState("c10", "c6")
+    initial_state = CompositionState("c8", "c2 c3")
 
     initial_node = CompositionNode(initial_state, None, None, 0)
 
