@@ -1,0 +1,23 @@
+LI(n, m): n m+1 -> 1 n m 1
+cn cm+1
+c1 cn cm c1
+
+LII(n): 1 n+1 -> 2 n 1
+c1 cn+1
+c2 cn c1
+
+L1: 1 2 -> 4
+c1 c2
+c4
+
+L3: 2 3 -> 8
+c2 c3
+c8
+
+L4: 1 3 -> 7
+c1 c3
+c7
+
+L5: 2 2 -> 6
+c2 c2
+c6

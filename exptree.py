@@ -195,7 +195,16 @@ def test_shape_like():
     assert ExpNode.from_string("(c1 c1) (c1 c1) (c1 c1) c1").shape_like(comp_shape)
     assert ExpNode.from_string("c1 (c1 c1) (c1 (c1 1))").shape_like(comp_shape)
 
-    ExpressionState.from_string("a b c", "c1 c1 c1")
+    comp_shape = ExpNode.from_string("a (b c)")
+    assert ExpNode.from_string("c1 (c1 c1)").shape_like(comp_shape)
+    assert ExpNode.from_string("c1 (c1 c1) c1").shape_like(comp_shape)
+    assert ExpNode.from_string("c1 (c1 c1) (c1 c1)").shape_like(comp_shape)
+    assert ExpNode.from_string("c1 (c1 (f c1))").shape_like(comp_shape)
+    assert not ExpNode.from_string("c1 c1").shape_like(comp_shape)
+    assert not ExpNode.from_string("c1 c1 c1").shape_like(comp_shape)
+    #assert ExpNode.from_string("c1 (c1 c1 c1)").shape_like(comp_shape)
+
+    
 
 def test_calculate_subexpressions():
     exp_str_list = ["a b c", "a (b c)", "(a b) (c d) (e f)", "a (b (c d) e) f", "a (b c) d e f", "x (a (b (c (d (e f)))))"]

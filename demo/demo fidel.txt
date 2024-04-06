@@ -1,0 +1,177 @@
+Fidel ML — hoy a las 18:08
+Estuve jugando con las aplicaciones de varios compose...
+Fidel ML — hoy a las 18:09
+Para eso dí en llamar c_i a la aplicación de i composes
+Así 
+c1 = (.)
+c2 = c1 (.) = (.) (.)
+c3 = c2 (.) = (.) (.) (.)
+...
+Con esto, resulta que c10 es igual a c6 (y por lo tanto c8 es igual a c12). Desde ahí para arriba, todos ciclan 😄
+Para verlo, vaya este razonamiento 
+  c8
+  --
+=                      (Lema 3)
+  c2 c3
+     --
+=                      (def c3)
+  c2 (c2 (.))
+  -----------
+=                      (def (.))
+  (.) c2 c2 (.)
+  ---
+=                      (def c1)
+  c1 c2 c2 (.)
+  -----
+=                      (Lema 1)
+  c4 c2 (.)
+     --
+=                      (def c2)
+  c4 (c1 (.)) (.)
+  -----------
+=                      (def (.))
+  (.) c4 c1 (.) (.)
+  ---    --
+=                      (def c1 x2)
+  c1 c4 (.) (.) (.)
+  -----
+=                      (Lema 2)
+  c2 c3 (.) (.) (.) (.)
+=                      (Lema 3)
+  c8 (.) (.) (.) (.)
+=                      (def c9, c10, c11 y c12)
+  c12
+ 
+Faltan 2 lemas
+Lema 1:  
+   c1 c2
+      --
+=              (def c2)
+   c1 (c1 (.))
+   -----------
+=              (def (.))
+   (.) c1 c1 (.)
+       -- --
+=              (def c1 x2)
+   (.) (.) (.) (.)
+   ---------------
+=              (def c4)
+   c4
+ 
+Lema 2: 
+  c1 c4
+     --
+=          (def c4)
+  c1 (c3 (.))
+  -----------
+=          (def (.))
+  (.) c1 c3 (.)
+  --- --
+=          (def c1 x2)
+  c1 (.) c3 (.)
+  ------
+=          (def c2) 
+  c2 c3 (.)
+ 
+Lo único que queda ver es que c2 c3 = c8. Pero eso no lo conseguí aún 😄 (aunque ES)
+Fidel ML — hoy a las 18:26
+Lema 3: 
+  c2 c3
+  --
+=              (def c2)
+  c1 c1 c3
+  --
+=              (def c1)
+  (.) c1 c3
+  ---------
+=              (regla eta)
+  \f -> (.) c1 c3 f
+        -----------
+=              (def (.))
+  \f -> c1 (c3 f)
+            --
+=              (def c3)
+  \f -> c1 (c2 (.) f)
+            --
+=              (def c2)
+  \f -> c1 ((.) (.) (.) f)
+                    ---
+=              (def c1)
+  \f -> c1 ((.) (.) c1) f)
+            ----------
+=              (notación de sección de operadores)
+  \f -> c1 (((.) . c1) f)
+        --
+=              (def c1)
+  \f -> (.) (((.) . c1) f)
+             ------------
+=              (def (.))
+  \f -> (.) ((.) (c1 f))
+        ----------------
+=              (def (.))
+  \f -> ((.) . (.)) (c1 f)
+         ---------
+=              (notación de sección de operadores)
+  \f -> (.) (.) (.) (c1 f)
+        -----------
+=              (def c3)
+  \f -> c3 (c1 f)
+        ---------
+=              (def (.)
+  \f -> (.) c3 c1 f
+  -----------------
+=              (regla eta)
+  (.) c3 c1
+  ---    --
+=              (def c1 x2)
+  c1 c3 (.)
+=              (Lema 4)
+  c7 (.)
+  ------
+=              (def c8)
+  c8
+
+Este es el más feo (porque tengo que usar la regla eta, y no me convence hacerlo así... Pero no veo por ahora cómo sin ella). 
+Lema 4: 
+  c1 c3
+     --
+=           (def c3)
+  c1 (c2 (.))
+  -----------
+=           (def (.))
+  (.) c1 c2 (.)
+  --- --
+=           (def c1 x2)
+  (.) (.) c2 (.)
+  -------
+=           (def c2)
+  c2 c2 (.)
+  -----
+=           (Lema 5)
+  c6 (.)
+  ------
+=           (def c7)
+  c7
+
+Lema 5: 
+  c2 c2
+     --
+=             (def c2)
+  c2 (c1 (.))
+  -----------
+=             (def (.))
+  (.) c2 c1 (.)
+  ---    --
+=             (def c1 x2)
+  c1 c2 (.) (.)
+  -----
+=             (Lema 1)
+  c4 (.) (.)
+  ------
+=             (def c5)
+  c5 (.)
+  ------
+=             (def c6)
+  c6
+Fidel ML — hoy a las 18:35
+En realidad demostré que c8 = c12... Lo otro lo comprobé después (hagan esa demostración :D)

@@ -1,0 +1,134 @@
+Fidel ML — hoy a las 18:08
+Estuve jugando con las aplicaciones de varios compose...
+Fidel ML — hoy a las 18:09
+Para eso dí en llamar c_i a la aplicación de i composes
+Así 
+c1 = (.)
+c2 = c1 (.) = c1 c1
+c3 = c2 c1 = c1 c1 c1
+...
+Con esto, resulta que c10 es igual a c6 (y por lo tanto c8 es igual a c12). Desde ahí para arriba, todos ciclan 😄
+Para verlo, vaya este razonamiento 
+  c8
+  --
+= _____                (Lema 3)
+  c2 c3
+  -----
+= __ _____ __          (LemaI 2 2)
+  c1 c2 c2 c1
+  -----
+= __                   (Lema 1)
+  c4 c2 c1
+  -----
+= __ _____ __          (LemaI 4 2)
+  c1 c4 c1 c1 c1
+  -----
+= ________             (LemaII 4)
+  c2 c3 c1 c1 c1 c1
+  -----
+= __                   (Lema 3)
+  c8 c1 c1 c1 c1
+  --------------
+= ___                  (collapse c8 4c1)
+  c12
+ 
+Faltan 2 lemas
+Lema 1:  
+   c1 c2
+   -----
+=  __ _____ __    (LemaI 1 1)
+   c1 c1 c1 c1
+   ---------------
+=  __             (collapse)
+   c4
+ 
+ 
+Lo único que queda ver es que c2 c3 = c8. Pero eso no lo conseguí aún 😄 (aunque ES)
+Fidel ML — hoy a las 18:26
+Lema 3: 
+  c2 c3
+  --
+= _____                 (expand c2)
+  c1 c1 c3
+  ---------
+=  _    ________ _      (regla eta)
+  \f -> c1 c1 c3 f
+        ++ -- -- -
+=       __  __ _        (def c1)
+  \f -> c1 (c3 f)
+            --
+=           ________    (expand c3)
+  \f -> c1 (c1 c1 c1 f)
+            ++ -- -- -
+=           __  __ _    (def c1)
+  \f -> c1 (c1 (c1 f))
+        --  --  ----
+=       ++ __ __  ____  (def c1)
+  \f -> c1 c1 c1 (c1 f)
+        ---------
+=       __              (collapse 3c1)
+  \f -> c3 (c1 f)
+        --  -- -
+=       ++ __ __ _      (def c1)
+  \f -> c1 c3 c1 f
+   --   -------- -
+= ________              (regla eta)
+  c1 c3 c1
+  -----
+= __                    (Lema 4)
+  c7 c1
+  ------
+= __                    (collapse c7 c1)
+  c8
+
+Este es el más feo (porque tengo que usar la regla eta, y no me convence hacerlo así... Pero no veo por ahora cómo sin ella). 
+
+
+Lema 4: 
+  c1 c3
+  -----
+= ________    (LemaII 2)
+  c2 c2 c1
+  -----
+= __          (Lema 5)
+  c6 c1
+  ------
+= __          (collapse c6 c1)
+  c7
+
+Lema 5: 
+  c2 c2
+  -----
+= __ _____ __ (LemaI 2 1)
+  c1 c2 c1 c1
+  -----
+= __          (Lema 1)
+  c4 c1 c1
+  --------
+= __          (Collapse c4 2c1)
+  c6
+Fidel ML — hoy a las 18:35
+En realidad demostré que c8 = c12... Lo otro lo comprobé después (hagan esa demostración :D)
+
+
+LI(n, m): n m+1 -> 1 n m 1
+    cn cm+1
+       ----
+=       _____   (expan cm+1)
+    cn (cm c1)
+    --  -- --
+=   ++ __ __ __ (def def c1)
+    c1 cn cm c1
+
+
+LII(n):
+  c1 cn+1
+     ----
+=     _____  (expand cn+1)
+  c1 (cn c1)
+  --  -- --
+= ++ __ __ __ (def c1)
+  c1 c1 cn c1
+  ------
+= __          (collapse 2c1) 
+  c2 cn c1
