@@ -1,7 +1,7 @@
 import numpy as np
 from search_methods.node import Node
 import re
-
+from utils import normalize_expression, get_token
 class CompositionState(object):
     def __init__(self, exp, expec_exp) -> None:
         self.exp = exp
@@ -19,44 +19,6 @@ class CompositionState(object):
 
     def is_solution(self):
         return self.exp == self.expec_exp 
-
-def get_token(expression, start_index):
-    current_index = start_index
-    if expression[current_index] == ' ': raise ValueError("Invalid expression")
-    if expression[current_index] == '(':
-        scope_count = 1
-        while scope_count > 0 and current_index < len(expression):
-            current_index += 1
-            scope_count += (expression[current_index] == '(') - (expression[current_index] == ')')
-        if scope_count != 0:
-            raise ValueError("Invalid parenthesis")
-        current_index += 1        
-    else:
-        while current_index < len(expression) and expression[current_index] != ')' and expression[current_index] != ' ':
-            current_index += 1
-    return expression[start_index:current_index], start_index, current_index
-
-def get_all_subexpressions(expression):
-    subexpressions = []
-    index = 0
-    while index < len(expression):
-        if index == 0 or expression[index] == '(' or expression[index - 1] == ' ' or expression[index - 1] == '(':
-            token, start, end = get_token(expression, index)
-            subexpressions.append(token)
-        index += 1
-        
-    return subexpressions
-
-    
-def normalize_expression(expression):
-    while expression.startswith("("):
-        _, _, end = get_token(expression, 0)
-        expression = expression[1:end - 1] + expression[end:]
-    index = expression.find("((")
-    while (index := expression.find("((", index)) != -1:
-        _, _, end = get_token(expression, index + 1)
-        expression = expression[:index] + expression[index+1:end-1]+ expression[end:]
-    return expression
 
 class EquivalentExpressions:
     def __init__(self, short, long, custom_name=None):
@@ -237,17 +199,6 @@ if __name__ == "__main__":
 
     c2 = EquivalentExpressions("c2", "c1 c1")
     assert (c2.expression_replace("c1 (c1 c1) c1 c1 c1 c1")[0] == ("c1 c2 c1 c1 c1 c1")), f"Got: {c2.expression_replace('c1 (c1 c1) c1 c1 c1 c1')}"
-    #normalize expression
-    assert (normalize_expression("a b") == "a b"), f"Got: {normalize_expression('a b')}"
-    assert (normalize_expression("(a b)") == "a b"), f"Got: {normalize_expression('(a b)')}"
-    assert (normalize_expression("((a b) c)") == "a b c"), f"Got: {normalize_expression('((a b) c)')}"
-    assert (normalize_expression("((a b) (c d))") == "a b (c d)"), f"Got: {normalize_expression('((a b) (c d))')}"
-    assert (normalize_expression("a (b c)") == "a (b c)"), f"Got: {normalize_expression('a (b c)')}"
-    assert (normalize_expression("(((((a b) c) d) e) f) h") == "a b c d e f h"), f"Got: {normalize_expression('(((((a b) c) d) e) f) h')}"
-    assert (normalize_expression("a (b (c (d (e f))))") == "a (b (c (d (e f))))"), f"Got: {normalize_expression('a (b (c (d (e f))))')}"
-    assert (normalize_expression("a (b c) (d e) (e f)") == "a (b c) (d e) (e f)"), f"Got: {normalize_expression('a (b c) (d e) (e f)')}"
-    assert (normalize_expression("a ((b c) d) ((e f) g) (h (i j))") == "a (b c d) (e f g) (h (i j))"), f"Got: {normalize_expression('a ((b c) d) ((e f) g) (h (i j))')}"
-    assert (normalize_expression("a b (c ((d e) f) ((g h) (i j)))") == "a b (c (d e f) (g h (i j)))"), f"Got: {normalize_expression('a b (c ((d e) f) ((g h) (i j)))')}"
     #ceval
     ceval = CEvaluationDefinition("c1", "(1 (2 3))")
     assert (len(ceval.expression_replace("c1 x y")) == 0), f"Got: {ceval.expression_replace('c1 x y')}"
