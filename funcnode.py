@@ -7,7 +7,9 @@ def cn_definition(tree: 'FuncExpTree'):
         tree_copy = tree.copy()
         tree_copy.args.pop(0)
         tree_copy.f = f"c{int(tree.f[1:]) + 1}"
-        return [tree_copy]
+
+        transformation = TreeTransformation(tree_copy, tree, f"def {tree_copy.f}")
+        return [transformation]
     return [] 
 
 # c_n+1 -> c_n c_1       
@@ -20,7 +22,9 @@ def cn_inverse_definition(tree: 'FuncExpTree'):
         tree_copy = tree.copy()
         tree_copy.f = f"c{number - 1}"
         tree_copy.args = [FuncExpTree(f="c1", level=tree_copy.level+1)] + tree_copy.args
-        return [tree_copy]
+
+        transformation = TreeTransformation(tree_copy, tree, f"def {tree.f}")
+        return [transformation]
     return []
 
 # a (b c) x -> c1 a b c x
@@ -45,7 +49,8 @@ def c1_inverse_apply(tree: 'FuncExpTree'):
             a.level += 1
             c.level -= 1
 
-            variants.append(new_node) 
+            transformation = TreeTransformation(new_node, tree, f"def c1 (inv apply)")
+            variants.append(transformation) 
     return variants
 
 # c1 a b c x -> a (b c) x
@@ -69,10 +74,10 @@ def c1_apply(tree: 'FuncExpTree'):
 
         a.expected = tree.expected
 
-        return [a]
+        transformation = TreeTransformation(a, tree, f"def c1 (apply)")
+        return [transformation]
     return []
 
-# Unused
 def get_last_variable_name(tree: 'FuncExpTree'):
     infix_exp = tree.infix() 
     return max(filter(lambda e: e[0] == 'f', infix_exp.replace('(', '').replace(')', '').split(' ')), key=lambda e: int(e[1:]), default=None)
@@ -88,16 +93,62 @@ def eta(tree: 'FuncExpTree'):
     if last_var is not None and tree.args[-1].f == last_var and tree.args[-1].is_atomic(): 
         tree_copy = tree.copy()
         tree_copy.args.pop()
-        options.append(tree_copy)
+
+        transformation = TreeTransformation(tree_copy, tree, f"eta (remove)")
+        options.append(transformation)
     
     # Add eta
     next_var = f"f{int(last_var[1:]) + 1}" if last_var is not None else "f1"
     tree_copy = tree.copy()
     tree_copy.args.append(FuncExpTree(f=next_var, level=tree.level+1))    
-    options.append(tree_copy)
+
+    transformation = TreeTransformation(tree_copy, tree, f"eta (add)")
+    options.append(transformation)
+
     return options
 
 known_actions = [cn_definition, cn_inverse_definition, c1_apply, c1_inverse_apply]
+
+class TreeTransformation(object):
+    def __init__(self, result: 'FuncExpTree', original_subtree: 'FuncExpTree', description: str):
+        self.original_subtree = original_subtree
+        self.result = result
+        self.description = description
+        self.prefix_value = "" 
+        self.underline = ""
+        self.symbol = ' '
+        self.coloring = False
+    
+    def get_styled_infix(self, tree: 'FuncExpTree'):
+        if tree is self.original_subtree:
+            self.coloring = True
+            self.symbol = '-'
+
+        if tree.is_atomic():
+            self.prefix_value += f"{tree.f}"
+            self.underline += self.symbol * len(tree.f)
+        else:
+            self.prefix_value += f"({tree.f} "
+            self.underline += self.symbol * (len(tree.f)+2)
+
+            for arg in tree.args:
+                self.get_styled_infix(arg) 
+                if arg is not tree.args[-1]:
+                    self.prefix_value += " "
+                    self.underline += self.symbol
+
+            self.prefix_value = self.prefix_value + ")"
+            self.underline += self.symbol
+
+        if tree is self.original_subtree and self.coloring:
+            self.coloring = False
+            self.symbol = ' '
+
+        return self.prefix_value, self.underline
+        
+
+
+
 
 class FuncExpTree(object):
     def __init__(self, f, arg_tokens=[], level=0, expected=None):
@@ -161,16 +212,17 @@ class FuncExpTree(object):
         tree_copy.args = [child if i == index else arg.copy() for i, arg in enumerate(self.args)]
         return tree_copy
     
-    def get_next_trees(self):
+    def get_next_transformations(self):
         # Actions that can be applied to the current tree
-        new_trees = [(t, action.__name__) for action in known_actions for t in action(self)] 
+        transformations = [trans for action in known_actions for trans in action(self)] 
         
         # Actions that can be applied to the children of the current tree
         for i, arg in enumerate(self.args):
-            for (child, a) in arg.get_next_trees():
-                new_trees.append((self.copy_replacing_child(i, child), a))
+            for trans in arg.get_next_transformations():
+                trans.result = self.copy_replacing_child(i, trans.result)
+                transformations.append(trans)
 
-        return new_trees 
+        return transformations 
 
 class FuncExpNode(Node):
     def __init__(self, state: FuncExpTree, parent=None, action=None, cost=0, comparator=None, eta_enabled=False):
@@ -198,17 +250,11 @@ class FuncExpNode(Node):
         if (self.cost > 200):
             return []
 
-        # new_nodes = [FuncExpNode(t, self, a, self.cost + 1, self.comparator, self.eta_enabled) for (t,a) in self.state.get_next_trees()]
-        # expanded_nodes.extend(new_nodes)
-        
-        # for i, arg in enumerate(self.state.args):
-        #     for (child, a) in arg.get_next_trees():
-        #         expanded_nodes.append(FuncExpNode(self.state.copy_replacing_child(i, child), self, a, self.cost + 1, self.comparator, self.eta_enabled))
-        expanded_nodes = [FuncExpNode(t, self, a, self.cost + 1, self.comparator, self.eta_enabled) for (t,a) in self.state.get_next_trees()]   
+        expanded_nodes = [FuncExpNode(trans.result, self, trans, self.cost + 1, self.comparator, self.eta_enabled) for trans in self.state.get_next_transformations()]   
 
         # eta
         if self.eta_enabled:
-            expanded_nodes.extend([FuncExpNode(t, self, 'eta', self.cost + 1, self.comparator, self.eta_enabled) for t in eta(self.state)])
+            expanded_nodes.extend([FuncExpNode(trans.result, self, trans, self.cost + 1, self.comparator, self.eta_enabled) for trans in eta(self.state)])
 
         return expanded_nodes 
 
@@ -216,7 +262,7 @@ class FuncExpNode(Node):
         sequence = []
         current = self
         while current is not None and current.action is not None:
-            sequence.insert(0, (current.action, current.state.infix()))
+            sequence.insert(0, current.action)
             current = current.parent
         return sequence
 
