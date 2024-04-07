@@ -70,6 +70,10 @@ def test_funcnode():
     solution, _, _ = greedy.search(initial_node, by_funcnode_length)
     assert solution is not None 
 
+    initial_node = FuncExpNode.from_expressions("c2 c3", "c8", True)
+    solution, _, _ = greedy.search(initial_node, by_funcnode_length)
+    assert solution is not None
+
 if __name__ == "__main__":
     test_funcnode()
     print("All tests passed")

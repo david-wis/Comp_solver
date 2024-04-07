@@ -10,6 +10,7 @@ from datetime import datetime
 import os
 import heuristics as h
 from funcnode import FuncExpNode
+from utils import normalize_expression
 
 methods = {
     "dfs": dfs.search,
@@ -20,6 +21,7 @@ methods = {
 heuristics = {
     "by_length": h.by_length,
     "by_constant_weight": h.by_constant_weight,
+    "by_funcnode_length": h.by_funcnode_length
 }
 
 # heuristics = {
@@ -31,8 +33,8 @@ heuristics = {
 #     "max_manhattan+p": max_heuristic(manhattan_heuristic, partial(mdp_heuristic, distance_function=manhattan_distance))
 # }
 
-search = methods["dfs"]
-heuristic = heuristics["by_constant_weight"]
+search = methods["bfs"]
+heuristic = heuristics["by_funcnode_length"]
 
 def verify_correctness(seq):
     print(f"\nTest the types in ghci:")
@@ -44,10 +46,10 @@ def verify_correctness(seq):
 
 
 def single_funcnode():
-    initial_node = FuncExpNode.from_expressions("c2 (c1 c1)", "c5 c1")
+    initial_node = FuncExpNode.from_expressions("c6", "c10", True)
 
     begin_time = datetime.now()
-    (solution, visited, border) = search(initial_node)
+    (solution, visited, border) = search(initial_node, heuristic)
     finish_time = datetime.now()
 
     print(f"visited nodes = {len(visited)}")
@@ -60,8 +62,8 @@ def single_funcnode():
     print(f"cost = {solution.cost} ")
     print(f"solution length = {len(solution.get_sequence())}")
     seq = solution.get_sequence()
-    # print(f"Solution:\n{initial_state.exp}\n", "\n".join(map(lambda x: f"=\t\t\t\t{x[0]}\n({x[1]})", seq)))
-    # print("length: ", len(seq))
+    print(f"Solution:\n", "\n".join(map(lambda x: f"=\t\t\t\t{x[0]}\n{normalize_expression(x[1])}", seq)))
+    print("length: ", len(seq))
     verify_correctness(seq)
 
 def single():
