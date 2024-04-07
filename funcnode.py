@@ -162,7 +162,15 @@ class FuncExpTree(object):
         return tree_copy
     
     def get_next_trees(self):
-        return [(t, action.__name__) for action in known_actions for t in action(self)]
+        # Actions that can be applied to the current tree
+        new_trees = [(t, action.__name__) for action in known_actions for t in action(self)] 
+        
+        # Actions that can be applied to the children of the current tree
+        for i, arg in enumerate(self.args):
+            for (child, a) in arg.get_next_trees():
+                new_trees.append((self.copy_replacing_child(i, child), a))
+
+        return new_trees 
 
 class FuncExpNode(Node):
     def __init__(self, state: FuncExpTree, parent=None, action=None, cost=0, comparator=None, eta_enabled=False):
@@ -187,16 +195,16 @@ class FuncExpNode(Node):
         return f"{str(self.state)}\n{self.action}" 
 
     def expand(self):
-        expanded_nodes = []
         if (self.cost > 200):
             return []
 
-        new_nodes = [FuncExpNode(t, self, a, self.cost + 1, self.comparator, self.eta_enabled) for (t,a) in self.state.get_next_trees()]
-        expanded_nodes.extend(new_nodes)
+        # new_nodes = [FuncExpNode(t, self, a, self.cost + 1, self.comparator, self.eta_enabled) for (t,a) in self.state.get_next_trees()]
+        # expanded_nodes.extend(new_nodes)
         
-        for i, arg in enumerate(self.state.args):
-            for (child, a) in arg.get_next_trees():
-                expanded_nodes.append(FuncExpNode(self.state.copy_replacing_child(i, child), self, a, self.cost + 1, self.comparator, self.eta_enabled))
+        # for i, arg in enumerate(self.state.args):
+        #     for (child, a) in arg.get_next_trees():
+        #         expanded_nodes.append(FuncExpNode(self.state.copy_replacing_child(i, child), self, a, self.cost + 1, self.comparator, self.eta_enabled))
+        expanded_nodes = [FuncExpNode(t, self, a, self.cost + 1, self.comparator, self.eta_enabled) for (t,a) in self.state.get_next_trees()]   
 
         # eta
         if self.eta_enabled:
