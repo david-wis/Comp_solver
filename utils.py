@@ -35,6 +35,15 @@ def get_all_subexpressions(expression):
         
     return subexpressions
 
+def get_parameters_subexpressions(expression):
+    subexpressions = []
+    index = 0
+    while index < len(expression):
+        se, _, end = get_token(expression, index)
+        subexpressions.append(se)
+        index = end + 1
+    return subexpressions
+
 def normalize_expression(expression):
     while expression.startswith("("):
         _, _, end = get_token(expression, 0)

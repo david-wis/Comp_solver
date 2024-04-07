@@ -12,3 +12,8 @@ def weight(expression):
 
 def by_constant_weight(node):
     return abs(weight(node.state.exp) - weight(node.state.expec_exp)) + node.state.exp.count("f")
+
+##### FuncNode
+
+def by_funcnode_length(node):
+    return abs(node.state.infix().count(' ') - node.state.expected.count(' '))
