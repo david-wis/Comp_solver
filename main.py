@@ -38,8 +38,8 @@ heuristic = heuristics["by_funcnode_length"]
 
 def verify_correctness(seq):
     print(f"\nTest the types in ghci:")
-    for (_, exp) in seq:
-        print(f":t {exp}")
+    for t in seq:
+        print(f":t {t.result.infix()}")
 
     
     
@@ -62,7 +62,7 @@ def single_funcnode():
     print(f"cost = {solution.cost} ")
     print(f"solution length = {len(solution.get_sequence())}")
     seq = solution.get_sequence()
-    print(f"Solution:\n", "\n".join(map(lambda x: f"=\t\t\t\t{x[0]}\n{normalize_expression(x[1])}", seq)))
+    # print(f"Solution:\n", "\n".join(map(lambda x: f"=\t\t\t\t{x[0]}\n{normalize_expression(x[1])}", seq)))
     print("length: ", len(seq))
     verify_correctness(seq)
 

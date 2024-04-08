@@ -16,7 +16,7 @@ def display(initial_node, solution):
         print("=\n" if t is not seq[0] else '', 
               next_exp, 
               "\n", 
-              f"{curr_underline.ljust(40)} [{i+1}] {t.description}")
+              f"{curr_underline.ljust(60)} [{i+1}] {t.description}")
         prev_state = t.result
     print("=\n", initial_node.state.expected)
 
@@ -97,12 +97,12 @@ def test_funcnode():
     initial_node = FuncExpNode.from_expressions("c9", "c1 (c1 (c1 c1))")
     solution, _, _ = greedy.search(initial_node, by_funcnode_length)
     assert solution is not None
-    #display(initial_node, solution)
-
-    # initial_node = FuncExpNode.from_expressions("c6", "c10", True)
-    # solution, _, _ = bfs.search(initial_node)
-    # assert solution is not None
     # display(initial_node, solution)
+
+    initial_node = FuncExpNode.from_expressions("c10", "c6", True)
+    solution, _, _ = bfs.search(initial_node)
+    assert solution is not None
+    display(initial_node, solution)
 
     for i in range(12):
         exp1 = f"c{6+i}"
@@ -117,7 +117,7 @@ def test_funcnode():
         assert solution2 is not None
 
         assert len(solution1.get_sequence()) == len(solution2.get_sequence())
-        display(initial_node, solution1)
+        # display(initial_node, solution1)
 
 
 if __name__ == "__main__":
