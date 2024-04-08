@@ -1,4 +1,3 @@
-import numpy as np
 from search_methods.node import Node
 import re
 from utils import normalize_expression, index_of_pointer, get_subexpressions

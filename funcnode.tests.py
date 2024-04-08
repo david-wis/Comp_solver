@@ -117,7 +117,7 @@ def test_funcnode():
         assert solution2 is not None
 
         assert len(solution1.get_sequence()) == len(solution2.get_sequence())
-        # display(initial_node, solution1)
+        #display(initial_node, solution1)
 
 
 if __name__ == "__main__":
