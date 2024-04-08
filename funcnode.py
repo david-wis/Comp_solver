@@ -82,6 +82,8 @@ def get_last_variable_name(tree: 'FuncExpTree'):
     infix_exp = tree.infix() 
     return max(filter(lambda e: e[0] == 'f', infix_exp.replace('(', '').replace(')', '').split(' ')), key=lambda e: int(e[1:]), default=None)
 
+MAX_ETA = 1
+
 def eta(tree: 'FuncExpTree'):
     if tree.is_atomic():
         return []
@@ -97,8 +99,11 @@ def eta(tree: 'FuncExpTree'):
         transformation = TreeTransformation(tree_copy, tree, f"eta (remove)")
         options.append(transformation)
     
+    max_eta_app = int(last_var[1:]) if last_var is not None else 0
+    if max_eta_app >= MAX_ETA:
+        return options
     # Add eta
-    next_var = f"f{int(last_var[1:]) + 1}" if last_var is not None else "f1"
+    next_var = f"f{max_eta_app + 1}" if last_var is not None else "f1"
     tree_copy = tree.copy()
     tree_copy.args.append(FuncExpTree(f=next_var, level=tree.level+1))    
 

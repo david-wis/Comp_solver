@@ -1,12 +1,12 @@
 from funcnode import FuncExpNode, TreeTransformation
-from search_methods import dfs
-from search_methods import greedy
+from search_methods import bfs, dfs, greedy, astar
 from heuristics import by_funcnode_length
 from utils import normalize_expression
 
 search = dfs.search
 
 def display(initial_node, solution):
+    print(f"Solution length: {len(solution.get_sequence())}")
     seq = solution.get_sequence()
     prev_state = initial_node.state
     # print(initial_exp)
@@ -100,6 +100,12 @@ def test_funcnode():
     solution, _, _ = greedy.search(initial_node, by_funcnode_length)
     assert solution is not None
     # display(initial_node, solution)
+
+    initial_node = FuncExpNode.from_expressions("c8", "c12", True)
+    solution, _, _ = bfs.search(initial_node)
+    assert solution is not None
+    display(initial_node, solution)
+
 
 if __name__ == "__main__":
     test_funcnode()
