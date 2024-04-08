@@ -8,7 +8,7 @@ def cn_definition(tree: 'FuncExpTree'):
         tree_copy.args.pop(0)
         tree_copy.f = f"c{int(tree.f[1:]) + 1}"
 
-        transformation = TreeTransformation(tree_copy, tree, f"def {tree_copy.f}")
+        transformation = TreeTransformation(tree_copy, [[tree, None],[tree.args[0]]], f"collapse {tree_copy.f}")
         return [transformation]
     return [] 
 
@@ -23,7 +23,7 @@ def cn_inverse_definition(tree: 'FuncExpTree'):
         tree_copy.f = f"c{number - 1}"
         tree_copy.args = [FuncExpTree(f="c1", level=tree_copy.level+1)] + tree_copy.args
 
-        transformation = TreeTransformation(tree_copy, tree, f"def {tree.f}")
+        transformation = TreeTransformation(tree_copy, [[tree, None]], f"expand {tree.f}")
         return [transformation]
     return []
 
@@ -49,7 +49,7 @@ def c1_inverse_apply(tree: 'FuncExpTree'):
             a.level += 1
             c.level -= 1
 
-            transformation = TreeTransformation(new_node, tree, f"def c1 (inv apply)")
+            transformation = TreeTransformation(new_node, [[tree]+tree.args[:i]+[None], [tree.args[i]]+tree.args[i].args[:-1]+[None], [tree.args[i].args[-1]]], f"def c1 (inv apply)")
             variants.append(transformation) 
     return variants
 
@@ -74,7 +74,7 @@ def c1_apply(tree: 'FuncExpTree'):
 
         a.expected = tree.expected
 
-        transformation = TreeTransformation(a, tree, f"def c1 (apply)")
+        transformation = TreeTransformation(a, [[tree, None],[tree.args[0]],[tree.args[1]],[tree.args[2]]], f"def c1 (apply)")
         return [transformation]
     return []
 
@@ -96,7 +96,7 @@ def eta(tree: 'FuncExpTree'):
         tree_copy = tree.copy()
         tree_copy.args.pop()
 
-        transformation = TreeTransformation(tree_copy, tree, f"eta (remove)")
+        transformation = TreeTransformation(tree_copy, [[tree.args[-1]]], f"eta (remove)")
         options.append(transformation)
     
     max_eta_app = int(last_var[1:]) if last_var is not None else 0
@@ -107,16 +107,25 @@ def eta(tree: 'FuncExpTree'):
     tree_copy = tree.copy()
     tree_copy.args.append(FuncExpTree(f=next_var, level=tree.level+1))    
 
-    transformation = TreeTransformation(tree_copy, tree, f"eta (add)")
+    transformation = TreeTransformation(tree_copy, [], f"eta (add)")
     options.append(transformation)
 
     return options
 
 known_actions = [cn_definition, cn_inverse_definition, c1_apply, c1_inverse_apply]
 
+def is_interval_start(pointer, pointer_list_list):
+    return any(pointer is pl[0] for pl in pointer_list_list)
+
+def is_interval_end(pointer, pointer_list_list):
+    return any(pointer is pl[-1] for pl in pointer_list_list)
+
+def is_function_only(pointer, pointer_list_list):
+    return any(pointer is pl[0] and len(pl) > 1 and pl[1] == None for pl in pointer_list_list)
+
 class TreeTransformation(object):
-    def __init__(self, result: 'FuncExpTree', original_subtree: 'FuncExpTree', description: str):
-        self.original_subtree = original_subtree
+    def __init__(self, result: 'FuncExpTree', affected_intervals: list[list['FuncExpTree']], description: str):
+        self.affected_intervals = affected_intervals
         self.result = result
         self.description = description
         self.prefix_value = "" 
@@ -135,16 +144,24 @@ class TreeTransformation(object):
         return val, underline
     
     def get_styled_infix(self, tree: 'FuncExpTree'):
-        if tree is self.original_subtree:
+        if is_interval_start(tree, self.affected_intervals):
             self.coloring = True
             self.symbol = '-'
 
         if tree.is_atomic():
             self.prefix_value += f"{tree.f}"
             self.underline += self.symbol * len(tree.f)
+            if is_interval_start(tree, self.affected_intervals) and is_function_only(tree, self.affected_intervals):
+                self.coloring = False
+                self.symbol = ' '
         else:
             self.prefix_value += f"({tree.f} "
-            self.underline += self.symbol * (len(tree.f)+2)
+            if is_interval_start(tree, self.affected_intervals) and is_function_only(tree, self.affected_intervals):
+                self.underline += f" {self.symbol * len(tree.f)} "
+                self.coloring = False
+                self.symbol = ' '
+            else:
+                self.underline += self.symbol * (len(tree.f)+2)
 
             for arg in tree.args:
                 self.get_styled_infix(arg) 
@@ -155,7 +172,7 @@ class TreeTransformation(object):
             self.prefix_value = self.prefix_value + ")"
             self.underline += self.symbol
 
-        if tree is self.original_subtree and self.coloring:
+        if is_interval_end(tree, self.affected_intervals) and self.coloring:
             self.coloring = False
             self.symbol = ' '
 
