@@ -101,10 +101,24 @@ def test_funcnode():
     assert solution is not None
     # display(initial_node, solution)
 
-    initial_node = FuncExpNode.from_expressions("c6", "c10", True)
-    solution, _, _ = bfs.search(initial_node)
-    assert solution is not None
-    display(initial_node, solution)
+    # initial_node = FuncExpNode.from_expressions("c6", "c10", True)
+    # solution, _, _ = bfs.search(initial_node)
+    # assert solution is not None
+    # display(initial_node, solution)
+
+    for i in range(12):
+        exp1 = f"c{6+i}"
+        exp2 = f"c{10+i}"
+
+        initial_node = FuncExpNode.from_expressions(exp1, exp2, True)
+        solution1, _, _ = bfs.search(initial_node)
+        assert solution1 is not None
+
+        initial_node = FuncExpNode.from_expressions(exp2, exp1, True)
+        solution2, _, _ = bfs.search(initial_node)
+        assert solution2 is not None
+
+        assert len(solution1.get_sequence()) == len(solution2.get_sequence())
 
 
 if __name__ == "__main__":
