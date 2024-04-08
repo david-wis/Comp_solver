@@ -82,7 +82,7 @@ def get_last_variable_name(tree: 'FuncExpTree'):
     infix_exp = tree.infix() 
     return max(filter(lambda e: e[0] == 'f', infix_exp.replace('(', '').replace(')', '').split(' ')), key=lambda e: int(e[1:]), default=None)
 
-MAX_ETA = 1
+MAX_ETA = 3
 
 def eta(tree: 'FuncExpTree'):
     if tree.is_atomic():
@@ -123,6 +123,16 @@ class TreeTransformation(object):
         self.underline = ""
         self.symbol = ' '
         self.coloring = False
+
+    def get_styled(self, tree: 'FuncExpTree'):
+        val, underline = self.get_styled_infix(tree)
+        last_var = get_last_variable_name(tree)
+        if last_var is not None:
+            num = int(last_var[1:])
+            padding = "\\" + " ".join([f"f{i}" for i in range(1, num+1)]) + " -> "
+            val = padding + val
+            underline = " " * len(padding) + underline
+        return val, underline
     
     def get_styled_infix(self, tree: 'FuncExpTree'):
         if tree is self.original_subtree:

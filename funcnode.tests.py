@@ -11,7 +11,7 @@ def display(initial_node, solution):
     prev_state = initial_node.state
     # print(initial_exp)
     for t in seq:
-        next_exp, curr_underline = t.get_styled_infix(prev_state)
+        next_exp, curr_underline = t.get_styled(prev_state)
         print("=\n" if t is not seq[0] else '', 
               next_exp, 
               "\n", 
@@ -101,7 +101,7 @@ def test_funcnode():
     assert solution is not None
     # display(initial_node, solution)
 
-    initial_node = FuncExpNode.from_expressions("c8", "c12", True)
+    initial_node = FuncExpNode.from_expressions("c6", "c10", True)
     solution, _, _ = bfs.search(initial_node)
     assert solution is not None
     display(initial_node, solution)
