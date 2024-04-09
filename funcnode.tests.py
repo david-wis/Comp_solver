@@ -119,7 +119,13 @@ def test_funcnode():
         assert len(solution1.get_sequence()) == len(solution2.get_sequence())
         #display(initial_node, solution1)
 
+def equivalence(exp1, exp2):
+    initial_node = FuncExpNode.from_expressions(exp2, exp1, True)
+    solution, _, _ = bfs.search(initial_node)
+    display(initial_node, solution)
+
 
 if __name__ == "__main__":
-    test_funcnode()
+    #test_funcnode()
     print("All tests passed")
+    

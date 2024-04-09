@@ -1,6 +1,7 @@
 from search_methods.node import Node
 import re
 from utils import normalize_expression, binarize_expression, index_of_pointer, get_subexpressions, get_token
+from search_methods.bfs import search
 
 class BinExpNode:
     def from_string(expression_string) -> 'BinExpNode':
@@ -48,12 +49,15 @@ class BinExpNode:
     
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, BinExpNode):
+            if other == None: return False
             raise ValueError("Invalid comparison")
         if self.is_atomic() or other.is_atomic():
             return self.content == other.content
         return self.f == other.f and self.arg == other.arg
     
-
+    def __hash__(self) -> int:
+        return hash((self.content, self.f, self.arg))
+    
     def shape_like(self, shape: 'BinExpNode') -> bool:
         if not isinstance(shape, BinExpNode):
             raise ValueError("Invalid comparison")
@@ -86,14 +90,14 @@ class BinExpNode:
         if self.f != None:
             results += self.f.find_all(predicate)
         if self.arg != None:
-            results += self.args.find_all(predicate)
+            results += self.arg.find_all(predicate)
         return results
     
     def calculate_subexpressions(self) -> list['BinExpNode']:
         return self.find_all(lambda x: True)
 
 class BinExpTree:
-    def from_string(expression_string, expected_string) -> 'BinExpTree':
+    def from_string(expression_string:str, expected_string:str) -> 'BinExpTree':
         return BinExpTree(BinExpNode.from_string(expression_string), BinExpNode.from_string(expected_string))
 
     def __init__(self, root:BinExpNode, expected:BinExpNode) -> None:
@@ -107,11 +111,14 @@ class BinExpTree:
     def __repr__(self):
         return self.__str__()
     
+    def __hash__(self):
+        return self.root.__hash__()
+    
     def replace(self, old: BinExpNode, replacement: BinExpNode) -> 'BinExpTree':
         target_index = index_of_pointer(self.subexpressions, old)
         if target_index == -1: raise ValueError("Old expression not found")
         elif target_index == 0:
-            return BinExpTree(replacement.copy())
+            return BinExpTree(replacement.copy(), self.expected)
         else:
             new_exp_root = self.root.copy()
             target = new_exp_root.calculate_subexpressions()[target_index]
@@ -121,16 +128,21 @@ class BinExpTree:
                 target.parent.f = replacement_copy
             elif old is old.parent.arg:
                 target.parent.arg = replacement_copy
-            return BinExpTree(new_exp_root)
+            return BinExpTree(new_exp_root, self.expected)
 
     def is_solution(self):
         return self.root == self.expected    
 
 
+def equivalent_replace(exp1: BinExpNode, exp2: BinExpNode):
+    def replace(tree: BinExpTree) -> list[BinExpTree]:
+        occurrences = tree.root.find_all(lambda x: x == exp1)
+        return [tree.replace(o, exp2) for o in occurrences]
+    return replace
 
-
-
-actions = []
+actions = [
+    equivalent_replace(BinExpNode.from_string("c1 c1"), BinExpNode.from_string("c2"))
+]
 
 class BinSearchNode(Node):
     def __init__(self, state: BinExpTree, parent:'BinSearchNode'=None, action=None, cost=0, comparator=None):
@@ -141,12 +153,12 @@ class BinSearchNode(Node):
         return BinSearchNode(BinExpTree.from_string(original, expected))
     
     def __repr__(self) -> str:
-        return f"{str(self.state)}\n{self.action}" 
+        return f"{str(self.state)}\n{self.action}"
 
     def expand(self):
         if (self.cost > 200):
             return []
-        expanded_nodes = [result for action in actions for result in action.replace(self.state.root)]
+        expanded_nodes = [BinSearchNode(result, self, action, self.cost+1, self.comparator) for action in actions for result in action(self.state)]
         return expanded_nodes 
 
     def get_sequence(self):
@@ -156,3 +168,21 @@ class BinSearchNode(Node):
             sequence.insert(0, current.action)
             current = current.parent
         return sequence
+
+    def get_path(self):
+        path = []
+        current = self
+        while current is not None and current.action is not None:
+            path.insert(0, current.state)
+            current = current.parent
+        return path
+            
+    def __hash__(self) -> int:
+        return self.state.__hash__()
+    
+if __name__ == '__main__':
+    initial_node = BinSearchNode(BinExpTree.from_string("c1 c1 c1 (c1 c1)", "c2 c1 c2"))
+    solution, _, _ = search(initial_node)
+    current_state = initial_node.state
+    for n in solution.get_path():
+        print(n)
