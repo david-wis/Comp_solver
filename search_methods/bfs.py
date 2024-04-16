@@ -1,10 +1,13 @@
-def search(initial_node, h=None):
+def search(initial_node, h=None, print_current = False):
     border = [initial_node]
     border_set = set()
     visited = set() 
     border_set.add(initial_node)
     while len(border) > 0:
         current = border.pop(0)
+        if print_current:
+            print(current)
+
         border_set.remove(current)
 
         if current.state.is_solution():

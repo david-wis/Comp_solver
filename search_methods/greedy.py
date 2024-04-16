@@ -1,6 +1,6 @@
 import heapq
 
-def search(initial_node, h=None):
+def search(initial_node, h=None, print_current = False):
     border = []
     border_set = set()
     initial_node.comparator = lambda n1, n2: h(n1) < h(n2)
@@ -10,6 +10,8 @@ def search(initial_node, h=None):
 
     while len(border) > 0:
         current = heapq.heappop(border)
+        if print_current:
+            print(current)
         border_set.remove(current)
 
         if current.state.is_solution():

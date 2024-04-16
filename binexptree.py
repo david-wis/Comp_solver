@@ -45,6 +45,9 @@ class BinExpNode:
     
     def is_parameter(self) -> bool:
         return self.is_atomic() and self.content.startswith('$')
+    
+    def is_eta_parameter(self) -> bool:
+        return self.is_atomic() and re.search("^f[1-9][0-9]*$",self.content) != None
 
     def copy(self, parent:'BinExpNode' = None) -> 'BinExpNode':
         exp_node = BinExpNode(content=self.content, parent=parent)
@@ -180,7 +183,6 @@ def equivalent_replace(exp1: BinExpNode, exp2: BinExpNode):
         return [tree.replace(o, exp2) for o in occurrences]
     return replace
 
-
 def parametrized_replace(exp1: BinExpNode, exp2: BinExpNode):
     def replace(tree: BinExpTree) -> list[BinExpTree]:
         occurrences = tree.root.find_all(lambda x: x.shape_like(exp1, {}))
@@ -206,7 +208,7 @@ def eta_add_replace(tree: BinExpTree):
 
 def eta_remove_replace(tree: BinExpTree):
     eta_level = tree.eta_level
-    if eta_level >= 1 and tree.root.arg.is_atomic() and tree.root.arg.content == f"f{eta_level}":
+    if eta_level >= 1 and tree.root.arg.is_eta_parameter():
         return [BinExpTree(tree.root.f.copy(), tree.expected)]
     return []
 
@@ -214,9 +216,11 @@ def simetric_rule(rule_generator, exp1, exp2):
     return [rule_generator(exp1, exp2), rule_generator(exp2, exp1)]
 
 actions = [r for i in range(1,30) for r in simetric_rule(equivalent_replace, BinExpNode.from_string(f"c{i} c1"), BinExpNode.from_string(f"c{i+1}"))]
-actions += [eta_remove_replace, eta_add_replace]
+actions += [eta_remove_replace]
+#actions += [eta_add_replace]
 actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c1 $1 $2 $3"), BinExpNode.from_string("$1 ($2 $3)"))
 actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c2 $1 $2 $3 $4"), BinExpNode.from_string("$1 $2 ($3 $4)"))
+#actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c3 $1 $2 $3 $4"), BinExpNode.from_string("$1 ($2 $3 $4)"))
 
 class BinSearchNode(Node):
     def __init__(self, state: BinExpTree, parent:'BinSearchNode'=None, action=None, cost=0, comparator=None):
@@ -260,10 +264,12 @@ class BinSearchNode(Node):
         return self.state == other.state
     
 if __name__ == '__main__':
-    initial_node = BinSearchNode(BinExpTree.from_string("c1 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 (f15 f16)", "c8"))
-    solution, _, _ = greedy.search(initial_node, h=lambda x: x.state.eta_level)
+    initial_node = BinSearchNode(BinExpTree.from_string("f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 (f13 f14)", "c8"))
+    heuristic = lambda x: x.state.eta_level + (not (x.state.root.arg != None and x.state.root.arg.is_eta_parameter()))
+    solution, _, _ = greedy.search(initial_node, h=heuristic)
     current_state = initial_node.state
-    print("solution")
+    print("solution", len(solution.get_path()))
     print(normalize_expression(str(initial_node.state.root)))
     for n in solution.get_path():
         print(normalize_expression(str(n.root)))
+
