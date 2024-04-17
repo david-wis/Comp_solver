@@ -35,7 +35,10 @@ class BinExpNode:
         if self.is_atomic():
             return self.content
         else:
-            return f"({str(self.f)} {str(self.arg)})"
+            if self.parent == None or self.parent.f is self:
+                return f"{str(self.f)} {str(self.arg)}"
+            else:
+                return f"({str(self.f)} {str(self.arg)})"
         
     def __repr__(self):
         return self.__str__()
@@ -48,6 +51,11 @@ class BinExpNode:
     
     def is_eta_parameter(self) -> bool:
         return self.is_atomic() and re.search("^f[1-9][0-9]*$",self.content) != None
+    
+    def is_simple(self) -> bool:
+        if self.is_atomic():
+            return True
+        return self.arg.is_atomic() and self.f.is_simplified()
 
     def copy(self, parent:'BinExpNode' = None) -> 'BinExpNode':
         exp_node = BinExpNode(content=self.content, parent=parent)
@@ -130,18 +138,26 @@ class BinExpNode:
         return self.find_all(lambda x: True)
 
 class BinExpTree:
-    def from_string(expression_string:str, expected_string:str) -> 'BinExpTree':
+    @classmethod
+    def from_string(cls, expression_string:str, expected_string:str, solution_function = None) -> 'BinExpTree':
+        if solution_function == None:
+            solution_function = cls.is_solution_equivalence
         root = BinExpNode.from_string(expression_string)
-        return BinExpTree(root, BinExpNode.from_string(expected_string))
+        return BinExpTree(root, BinExpNode.from_string(expected_string), solution_function)
 
-    def __init__(self, root:BinExpNode, expected:BinExpNode) -> None:
+    def __init__(self, root:BinExpNode, expected:BinExpNode, solution_function) -> None:
         self.root = root
         self.subexpressions = self.root.calculate_subexpressions()
         self.expected = expected
         self.eta_level = len(root.find_all(lambda x: x.is_atomic() and re.search("^f[1-9][0-9]*$",x.content)))
+        self.string = str(self.root)
+        self.solution_function = solution_function
+
+    def clone(self, new_root:BinExpNode) -> 'BinExpTree':
+        return BinExpTree(new_root, self.expected, self.solution_function)
 
     def __str__(self):
-        return normalize_expression(str(self.root))
+        return self.string
 
     def __repr__(self):
         return self.__str__()
@@ -158,7 +174,7 @@ class BinExpTree:
         target_index = index_of_pointer(self.subexpressions, old)
         if target_index == -1: raise ValueError("Old expression not found")
         elif target_index == 0:
-            return BinExpTree(replacement.copy(), self.expected)
+            return self.clone(replacement.copy())
         else:
             new_exp_root = self.root.copy()
             target = new_exp_root.calculate_subexpressions()[target_index]
@@ -168,23 +184,42 @@ class BinExpTree:
                 target.parent.f = replacement_copy
             elif old is old.parent.arg:
                 target.parent.arg = replacement_copy
-            return BinExpTree(new_exp_root, self.expected)
+            return self.clone(new_exp_root)
 
-    def is_solution1(self):
-        return self.root == self.expected
+    def is_solution_equivalence(node: 'BinExpNode') -> bool:
+        return node.root == node.expected
     
+    def is_solution_eta_level(node: 'BinExpNode') -> bool:
+        return node.eta_level == 0
+    
+    def is_solution_simple(node: 'BinExpNode') -> bool:
+        return node.root.is_simple()
+
     def is_solution(self):
-        return self.eta_level == 0
+        return self.solution_function(self)
+
+
+def print_transformation(node: 'BinExpNode', marked_nodes: list['BinExpNode']) -> str:
+        if any([node is mn for mn in marked_nodes]):
+            return '-' * len(str(node))
+        else:
+            if node.is_atomic():
+                return ' ' * len(node.content)
+            else:
+                if node.parent == None or node.parent.f is node:
+                    return f"{print_transformation(node.f, marked_nodes)} {print_transformation(node.arg, marked_nodes)}"
+                else:
+                    return f" {print_transformation(node.f, marked_nodes)} {print_transformation(node.arg, marked_nodes)} "
 
 
 def equivalent_replace(exp1: BinExpNode, exp2: BinExpNode):
-    def replace(tree: BinExpTree) -> list[BinExpTree]:
+    def replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
         occurrences = tree.root.find_all(lambda x: x == exp1)
-        return [tree.replace(o, exp2) for o in occurrences]
-    return replace
+        return [(tree.replace(o, exp2), [o]) for o in occurrences]
+    return replace, f"{exp1} -> {exp2}"
 
 def parametrized_replace(exp1: BinExpNode, exp2: BinExpNode):
-    def replace(tree: BinExpTree) -> list[BinExpTree]:
+    def replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
         occurrences = tree.root.find_all(lambda x: x.shape_like(exp1, {}))
         result = []
         for o in occurrences:
@@ -193,67 +228,74 @@ def parametrized_replace(exp1: BinExpNode, exp2: BinExpNode):
                 raise ValueError("Invalid replacement")
             replacement = exp2.copy()
             replacement.replace_arguments(params)
-            result.append(tree.replace(o, replacement))
+            result.append((tree.replace(o, replacement), [v for v in params.values()]))
         return result
-    return replace
+    return replace, f"{exp1} -> {exp2}"
 
-def eta_add_replace(tree: BinExpTree):
+NAME_ETA_ADD = "eta add"
+def eta_add_replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
     eta_level = tree.eta_level
     if eta_level < 30:
         new_arg = BinExpNode(content=f"f{eta_level+1}")
         new_root = BinExpNode(f=tree.root.copy(), arg=new_arg)
-        return [BinExpTree(new_root, tree.expected)]
+        return [(tree.clone(new_root), [tree.root])]
     return []
 
-
-def eta_remove_replace(tree: BinExpTree):
+NAME_ETA_REMOVE = "eta remove"
+def eta_remove_replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
     eta_level = tree.eta_level
     if eta_level >= 1 and tree.root.arg.is_eta_parameter():
-        return [BinExpTree(tree.root.f.copy(), tree.expected)]
+        return [(tree.clone(tree.root.f.copy()), [tree.root.arg])]
     return []
 
-def simetric_rule(rule_generator, exp1, exp2):
+def simetric_rule(rule_generator, exp1: BinExpNode, exp2: BinExpNode):
     return [rule_generator(exp1, exp2), rule_generator(exp2, exp1)]
 
 actions = [r for i in range(1,30) for r in simetric_rule(equivalent_replace, BinExpNode.from_string(f"c{i} c1"), BinExpNode.from_string(f"c{i+1}"))]
-actions += [eta_remove_replace]
-#actions += [eta_add_replace]
+actions += [(eta_remove_replace, NAME_ETA_REMOVE)]
+#actions += [(eta_add_replace, NAME_ETA_ADD)]
 actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c1 $1 $2 $3"), BinExpNode.from_string("$1 ($2 $3)"))
 actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c2 $1 $2 $3 $4"), BinExpNode.from_string("$1 $2 ($3 $4)"))
 #actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c3 $1 $2 $3 $4"), BinExpNode.from_string("$1 ($2 $3 $4)"))
 
 class BinSearchNode(Node):
-    def __init__(self, state: BinExpTree, parent:'BinSearchNode'=None, action=None, cost=0, comparator=None):
+    def __init__(self, state: BinExpTree, parent:'BinSearchNode'=None, action:str=None, cost=0, comparator=None, marked_nodes: list[BinExpNode] = []):
         super().__init__(state, parent, action, cost, comparator)
         assert state.expected is not None
+        self.marked_nodes = marked_nodes
     
     def from_strings(original: str, expected: str, eta_enabled = False):
         return BinSearchNode(BinExpTree.from_string(original, expected))
     
+    def __str__(self) -> str:
+        return str(self.state)
+
     def __repr__(self) -> str:
-        return f"{str(self.state)}"# - {self.action}"
+        return self.__str__()
 
     def expand(self):
         if (self.cost > 200):
             return []
-        expanded_nodes = [BinSearchNode(result, self, action, self.cost+1, self.comparator) for action in actions for result in action(self.state)]
+        expanded_nodes = [BinSearchNode(result, self, action_name, self.cost+1, self.comparator, marked_nodes) for action, action_name in actions for result, marked_nodes in action(self.state)]
         return expanded_nodes 
-
-    def get_sequence(self):
-        sequence = []
-        current = self
-        while current is not None and current.action is not None:
-            sequence.insert(0, current.action)
-            current = current.parent
-        return sequence
 
     def get_path(self):
         path = []
         current = self
-        while current is not None and current.action is not None:
-            path.insert(0, current.state)
+        while current is not None:
+            path.insert(0, current)
             current = current.parent
         return path
+    
+    def print_step(self, step:int, justify:int = 0):
+        if self.parent is not None:
+            transformation = print_transformation(self.parent.state.root, self.marked_nodes)
+            print(f"  {transformation.ljust(max(justify, len(transformation)), ' ')}\t\t[{step}] {self.action}")
+            print("=")
+            print(f"  {str(self.state)}")
+        else:
+            print(f"  {str(self.state)}")
+
             
     def __hash__(self) -> int:
         return self.state.__hash__()
@@ -262,14 +304,17 @@ class BinSearchNode(Node):
         if not isinstance(other, BinSearchNode):
             raise ValueError("Invalid comparison")
         return self.state == other.state
-    
-if __name__ == '__main__':
-    initial_node = BinSearchNode(BinExpTree.from_string("f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 (f13 f14)", "c8"))
-    heuristic = lambda x: x.state.eta_level + (not (x.state.root.arg != None and x.state.root.arg.is_eta_parameter()))
-    solution, _, _ = greedy.search(initial_node, h=heuristic)
-    current_state = initial_node.state
-    print("solution", len(solution.get_path()))
-    print(normalize_expression(str(initial_node.state.root)))
-    for n in solution.get_path():
-        print(normalize_expression(str(n.root)))
 
+
+    def print_trace(node: 'BinSearchNode'):
+        path = node.get_path()
+        justify = max(len(str(n.state)) for n in path)
+        for i, node in enumerate(path):
+            node.print_step(i,justify)
+        print(len(path) - 1)
+
+def heuristic(node: 'BinSearchNode') -> int:
+    if node.state.eta_level > 0:
+        return node.state.eta_level + (not (node.state.root.arg != None and node.state.root.arg.is_eta_parameter()))
+    else:
+        return str(node.state).count('(')
