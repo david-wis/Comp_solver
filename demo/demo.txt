@@ -100,31 +100,31 @@ c10
 
 
 
+c1
+c1 c1 c1
+c1 c1 (c1 c1 c1)
+c1 (c1 c1 c1) (c1 c1 c1)
+c1 c1 (c1 c1 (c1 c1 (c1 c1 c1)))
+c1 c1 (c1 (c1 c1 (c1 c1 (c1 c1 c1))) c1)
+c1 c1 (c1 (c1 c1 (c1 c1 c1)) (c1 c1 (c1 c1 c1)))
 
 
 
 
 
 
+c1
+c1 (c1 c1) c1
+c1 (c1 (c1 c1)) (c1 (c1 c1) c1)
+c1 (c1 (c1 (c1 (c1 c1) c1))) (c1 (c1 c1) c1)
+c1 (c1 (c1 (c1 (c1 (c1 (c1 c1) c1)))) (c1 (c1 (c1 c1) c1))) c1
+c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 c1) c1))) (c1 c1)) c1))) (c1 c1)) c1
+c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 c1) c1)))) (c1 (c1 (c1 (c1 c1)) (c1 c1)) c1)))) (c1 c1)) c1
+c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 c1) c1)) c1)) c1)) c1)) c1))) (c1 (c1 c1) c1)
+c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 (c1 c1) c1)) c1)) c1))) (c1 c1))))) (c1 (c1 (c1 (c1 c1)) (c1 c1)))) (c1 (c1 c1) c1)
 
 
 
-
-
-
-
-
-
-    c6 8c1
-    c2 c2 8c1
-    c2 c2 3c1 5c1
-    c2 c1 (c1 c1) 5c1
-    c3 c2 5c1
-    c3 c2 3c1 2c1
-    c2 (3c1) 2c1
-    c2 c3 2c1
-    c8 2c1
-    c8 2c1 4c1
-    c8 2c1 3c1 c1
-    c9 c1
-
+c1 (c1 (c1 c1) c1) (c1 c1 (c1 (c1 (c1 (c1 c1 (c1 (c1 (c1 c1 (c1 c1)) c1))) c1))))
+c1 (c1 c1) (c1 c1 c1)
+c1 (c1 c1 (c1 (c1 c1) c1))

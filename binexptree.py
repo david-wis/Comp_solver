@@ -49,13 +49,20 @@ class BinExpNode:
     def is_parameter(self) -> bool:
         return self.is_atomic() and self.content.startswith('$')
     
-    def is_eta_parameter(self) -> bool:
-        return self.is_atomic() and re.search("^f[1-9][0-9]*$",self.content) != None
+    def is_eta_parameter(self, level:int = None) -> bool:
+        if level == None:
+            return self.is_atomic() and re.search("^f[1-9][0-9]*$",self.content) != None
+        return self.is_atomic() and self.content == f"f{level}"
     
     def is_simple(self) -> bool:
         if self.is_atomic():
             return True
-        return self.arg.is_atomic() and self.f.is_simplified()
+        return self.arg.is_atomic() and self.f.is_simple()
+    
+    def depth(self) -> int:
+        if self.parent == None:
+            return 0
+        return 1 + self.parent.depth()
 
     def copy(self, parent:'BinExpNode' = None) -> 'BinExpNode':
         exp_node = BinExpNode(content=self.content, parent=parent)
@@ -111,19 +118,20 @@ class BinExpNode:
             if self.arg != None:
                 self.arg.replace_arguments(params)
 
-    def find_first(self, predicate: lambda x: bool) -> 'BinExpNode':
+    def find_first(self, predicate: lambda x: bool, inverted : bool = False) -> 'BinExpNode':
         if predicate(self):
             return self
-        if self.f != None:
-            result = self.f.find_first(predicate)
+        first, second = (self.f, self.arg) if not inverted else (self.arg, self.f)
+        if first != None:
+            result = first.find_first(predicate, inverted)
             if result != None:
                 return result
-        if self.arg != None:
-            result = self.arg.find_first(predicate)
+        if second != None:
+            result = second.find_first(predicate, inverted)
             if result != None:
                 return result
         return None
-    
+
     def find_all(self, predicate: lambda x: bool) -> list['BinExpNode']:
         results = []
         if predicate(self):
@@ -150,6 +158,7 @@ class BinExpTree:
         self.subexpressions = self.root.calculate_subexpressions()
         self.expected = expected
         self.eta_level = len(root.find_all(lambda x: x.is_atomic() and re.search("^f[1-9][0-9]*$",x.content)))
+        self.leaves = self.root.find_all(lambda x: x.is_atomic())
         self.string = str(self.root)
         self.solution_function = solution_function
 
@@ -186,30 +195,20 @@ class BinExpTree:
                 target.parent.arg = replacement_copy
             return self.clone(new_exp_root)
 
-    def is_solution_equivalence(node: 'BinExpNode') -> bool:
+    def is_solution_equivalence(node: 'BinExpTree') -> bool:
         return node.root == node.expected
     
-    def is_solution_eta_level(node: 'BinExpNode') -> bool:
+    def is_solution_eta_level(node: 'BinExpTree') -> bool:
         return node.eta_level == 0
     
-    def is_solution_simple(node: 'BinExpNode') -> bool:
+    def is_solution_simple(node: 'BinExpTree') -> bool:
         return node.root.is_simple()
+    
+    def is_solution_reverse_eta(node: 'BinExpTree') -> bool:
+        return len(node.leaves) == node.eta_level
 
     def is_solution(self):
         return self.solution_function(self)
-
-
-def print_transformation(node: 'BinExpNode', marked_nodes: list['BinExpNode']) -> str:
-        if any([node is mn for mn in marked_nodes]):
-            return '-' * len(str(node))
-        else:
-            if node.is_atomic():
-                return ' ' * len(node.content)
-            else:
-                if node.parent == None or node.parent.f is node:
-                    return f"{print_transformation(node.f, marked_nodes)} {print_transformation(node.arg, marked_nodes)}"
-                else:
-                    return f" {print_transformation(node.f, marked_nodes)} {print_transformation(node.arg, marked_nodes)} "
 
 
 def equivalent_replace(exp1: BinExpNode, exp2: BinExpNode):
@@ -251,12 +250,28 @@ def eta_remove_replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]
 def simetric_rule(rule_generator, exp1: BinExpNode, exp2: BinExpNode):
     return [rule_generator(exp1, exp2), rule_generator(exp2, exp1)]
 
-actions = [r for i in range(1,30) for r in simetric_rule(equivalent_replace, BinExpNode.from_string(f"c{i} c1"), BinExpNode.from_string(f"c{i+1}"))]
-actions += [(eta_remove_replace, NAME_ETA_REMOVE)]
-#actions += [(eta_add_replace, NAME_ETA_ADD)]
-actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c1 $1 $2 $3"), BinExpNode.from_string("$1 ($2 $3)"))
-actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c2 $1 $2 $3 $4"), BinExpNode.from_string("$1 $2 ($3 $4)"))
-#actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c3 $1 $2 $3 $4"), BinExpNode.from_string("$1 ($2 $3 $4)"))
+actions = []
+# actions += [r for i in range(1,10) for r in simetric_rule(equivalent_replace, BinExpNode.from_string(f"c{i} c1"), BinExpNode.from_string(f"c{i+1}"))[1:2]]
+actions += [r for i in range(1,10) for r in simetric_rule(equivalent_replace, BinExpNode.from_string("c1 "*(i) + "c1"), BinExpNode.from_string(f"c{i+1}"))[1:2]]
+# actions += [(eta_remove_replace, NAME_ETA_REMOVE)]
+actions += [(eta_add_replace, NAME_ETA_ADD)]
+actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c1 $1 $2 $3"), BinExpNode.from_string("$1 ($2 $3)"))[:1]
+# actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c1 c1 $1 $2 $3 $4"), BinExpNode.from_string("$1 $2 ($3 $4)"))[1:2]
+# actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c1 c1 c1 $1 $2 $3 $4"), BinExpNode.from_string("$1 ($2 $3 $4)"))[1:2]
+
+
+def print_transformation(node: 'BinExpNode', marked_nodes: list['BinExpNode']) -> str:
+        if any([node is mn for mn in marked_nodes]):
+            return '-' * len(str(node))
+        else:
+            if node.is_atomic():
+                return ' ' * len(node.content)
+            else:
+                if node.parent == None or node.parent.f is node:
+                    return f"{print_transformation(node.f, marked_nodes)} {print_transformation(node.arg, marked_nodes)}"
+                else:
+                    return f" {print_transformation(node.f, marked_nodes)} {print_transformation(node.arg, marked_nodes)} "
+
 
 class BinSearchNode(Node):
     def __init__(self, state: BinExpTree, parent:'BinSearchNode'=None, action:str=None, cost=0, comparator=None, marked_nodes: list[BinExpNode] = []):
@@ -290,7 +305,7 @@ class BinSearchNode(Node):
     def print_step(self, step:int, justify:int = 0):
         if self.parent is not None:
             transformation = print_transformation(self.parent.state.root, self.marked_nodes)
-            print(f"  {transformation.ljust(max(justify, len(transformation)), ' ')}\t\t[{step}] {self.action}")
+            print(f"  {transformation.ljust(max(justify, len(transformation)), ' ')}\t[{step}] {self.action}")
             print("=")
             print(f"  {str(self.state)}")
         else:
@@ -313,8 +328,31 @@ class BinSearchNode(Node):
             node.print_step(i,justify)
         print(len(path) - 1)
 
-def heuristic(node: 'BinSearchNode') -> int:
-    if node.state.eta_level > 0:
-        return node.state.eta_level + (not (node.state.root.arg != None and node.state.root.arg.is_eta_parameter()))
-    else:
+    def eta_heuristic(node: 'BinSearchNode') -> float:
+        if node.state.eta_level == 0:
+            return 0
+        else:
+            last_eta_parameter = node.state.root.find_first(lambda x: x.is_eta_parameter(node.state.eta_level), inverted=True)
+            eta_depth = last_eta_parameter.depth() - 1
+            return node.state.eta_level + (eta_depth / (eta_depth + 1))
+
+
+    def eta2_heuristic(node: 'BinSearchNode') -> float:
+        if node.state.eta_level == 0:
+            return 0
+        else:
+            last_eta_parameter = node.state.root.find_first(lambda x: x.is_eta_parameter(node.state.eta_level), inverted=True)
+            last2_eta_parameter = node.state.root.find_first(lambda x: x.is_eta_parameter(node.state.eta_level-1), inverted=True)
+            eta_depth = last_eta_parameter.depth() - 1
+            eta2_depth = last2_eta_parameter.depth() - 1 if last2_eta_parameter != None else 0
+            return node.state.eta_level + (eta_depth / (eta_depth + 1)) * 0.5 + (eta2_depth / (eta2_depth + 1)) * 0.5
+            
+
+    def simplicity_heuristic(node: 'BinSearchNode') -> float:
         return str(node.state).count('(')
+    
+    def equivalence_count_heuristic(node: 'BinSearchNode') -> float:
+        return abs(len(node.state.root.find_all(lambda x: True)) - len(node.state.expected.find_all(lambda x: True)))
+    
+    def reverse_eta_heuristic(node: 'BinSearchNode') -> float:
+        return len(node.state.leaves) - node.state.eta_level

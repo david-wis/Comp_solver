@@ -1,6 +1,6 @@
 import heapq
 
-def search(initial_node, h=None, print_current = False):
+def search(initial_node, h=None, predicate = lambda x: True, print_current = False):
     border = []
     border_set = set()
 
@@ -14,7 +14,7 @@ def search(initial_node, h=None, print_current = False):
     while len(border) > 0:
         current = heapq.heappop(border)
         if print_current:
-            print(current)
+            print(current, current.f(), h(current))
         border_set.remove(current)
 
         if current.state.is_solution():
@@ -22,7 +22,7 @@ def search(initial_node, h=None, print_current = False):
 
         visited.add(current)
 
-        new_nodes = {x for x in current.expand() if x not in visited and x not in border_set}
+        new_nodes = {x for x in current.expand() if predicate(x) and x not in visited and x not in border_set}
         for node in new_nodes:
             node.h = h(node)
             heapq.heappush(border, node)
