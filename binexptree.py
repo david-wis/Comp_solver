@@ -2,7 +2,7 @@ from search_methods.node import Node
 import re
 from utils import normalize_expression, binarize_expression, index_of_pointer, get_subexpressions, get_token
 from search_methods import bfs, dfs, greedy, astar
-
+from typing import Callable, Tuple
 class BinExpNode:
     def from_string(expression_string) -> 'BinExpNode':
         expression_string = binarize_expression(normalize_expression(expression_string))
@@ -147,9 +147,7 @@ class BinExpNode:
 
 class BinExpTree:
     @classmethod
-    def from_string(cls, expression_string:str, expected_string:str, solution_function = None) -> 'BinExpTree':
-        if solution_function == None:
-            solution_function = cls.is_solution_equivalence
+    def from_string(cls, expression_string:str, expected_string:str, solution_function: Callable[['BinExpTree'],bool]) -> 'BinExpTree':
         root = BinExpNode.from_string(expression_string)
         return BinExpTree(root, BinExpNode.from_string(expected_string), solution_function)
 
@@ -195,69 +193,20 @@ class BinExpTree:
                 target.parent.arg = replacement_copy
             return self.clone(new_exp_root)
 
+    def is_solution(self):
+        return self.solution_function(self)
+
     def is_solution_equivalence(node: 'BinExpTree') -> bool:
         return node.root == node.expected
     
-    def is_solution_eta_level(node: 'BinExpTree') -> bool:
+    def is_solution_point_free(node: 'BinExpTree') -> bool:
         return node.eta_level == 0
     
     def is_solution_simple(node: 'BinExpTree') -> bool:
         return node.root.is_simple()
     
-    def is_solution_reverse_eta(node: 'BinExpTree') -> bool:
+    def is_solution_lambda(node: 'BinExpTree') -> bool:
         return len(node.leaves) == node.eta_level
-
-    def is_solution(self):
-        return self.solution_function(self)
-
-
-def equivalent_replace(exp1: BinExpNode, exp2: BinExpNode):
-    def replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
-        occurrences = tree.root.find_all(lambda x: x == exp1)
-        return [(tree.replace(o, exp2), [o]) for o in occurrences]
-    return replace, f"{exp1} -> {exp2}"
-
-def parametrized_replace(exp1: BinExpNode, exp2: BinExpNode):
-    def replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
-        occurrences = tree.root.find_all(lambda x: x.shape_like(exp1, {}))
-        result = []
-        for o in occurrences:
-            params = {}
-            if not o.shape_like(exp1, params):
-                raise ValueError("Invalid replacement")
-            replacement = exp2.copy()
-            replacement.replace_arguments(params)
-            result.append((tree.replace(o, replacement), [v for v in params.values()]))
-        return result
-    return replace, f"{exp1} -> {exp2}"
-
-NAME_ETA_ADD = "eta add"
-def eta_add_replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
-    eta_level = tree.eta_level
-    if eta_level < 30:
-        new_arg = BinExpNode(content=f"f{eta_level+1}")
-        new_root = BinExpNode(f=tree.root.copy(), arg=new_arg)
-        return [(tree.clone(new_root), [tree.root])]
-    return []
-
-NAME_ETA_REMOVE = "eta remove"
-def eta_remove_replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
-    eta_level = tree.eta_level
-    if eta_level >= 1 and tree.root.arg.is_eta_parameter():
-        return [(tree.clone(tree.root.f.copy()), [tree.root.arg])]
-    return []
-
-def simetric_rule(rule_generator, exp1: BinExpNode, exp2: BinExpNode):
-    return [rule_generator(exp1, exp2), rule_generator(exp2, exp1)]
-
-actions = []
-# actions += [r for i in range(1,10) for r in simetric_rule(equivalent_replace, BinExpNode.from_string(f"c{i} c1"), BinExpNode.from_string(f"c{i+1}"))[1:2]]
-actions += [r for i in range(1,10) for r in simetric_rule(equivalent_replace, BinExpNode.from_string("c1 "*(i) + "c1"), BinExpNode.from_string(f"c{i+1}"))[1:2]]
-# actions += [(eta_remove_replace, NAME_ETA_REMOVE)]
-actions += [(eta_add_replace, NAME_ETA_ADD)]
-actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c1 $1 $2 $3"), BinExpNode.from_string("$1 ($2 $3)"))[:1]
-# actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c1 c1 $1 $2 $3 $4"), BinExpNode.from_string("$1 $2 ($3 $4)"))[1:2]
-# actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c1 c1 c1 $1 $2 $3 $4"), BinExpNode.from_string("$1 ($2 $3 $4)"))[1:2]
 
 
 def print_transformation(node: 'BinExpNode', marked_nodes: list['BinExpNode']) -> str:
@@ -272,15 +221,16 @@ def print_transformation(node: 'BinExpNode', marked_nodes: list['BinExpNode']) -
                 else:
                     return f" {print_transformation(node.f, marked_nodes)} {print_transformation(node.arg, marked_nodes)} "
 
-
 class BinSearchNode(Node):
-    def __init__(self, state: BinExpTree, parent:'BinSearchNode'=None, action:str=None, cost=0, comparator=None, marked_nodes: list[BinExpNode] = []):
+    def __init__(self, state: BinExpTree, actions: list[tuple[Callable, str]], filters: list[Callable], parent:'BinSearchNode'=None, action:str=None, cost=0, comparator=None, marked_nodes: list[BinExpNode] = []):
         super().__init__(state, parent, action, cost, comparator)
         assert state.expected is not None
+        self.actions = actions
+        self.filters = filters
         self.marked_nodes = marked_nodes
     
-    def from_strings(original: str, expected: str, eta_enabled = False):
-        return BinSearchNode(BinExpTree.from_string(original, expected))
+    def from_strings(original: str, expected: str, actions: list[tuple[Callable, str]], filters: list[tuple[Callable]], solution_function : Callable[[BinExpTree],bool]) -> 'BinSearchNode':
+        return BinSearchNode(BinExpTree.from_string(original, expected, solution_function), actions, filters)
     
     def __str__(self) -> str:
         return str(self.state)
@@ -291,8 +241,8 @@ class BinSearchNode(Node):
     def expand(self):
         if (self.cost > 200):
             return []
-        expanded_nodes = [BinSearchNode(result, self, action_name, self.cost+1, self.comparator, marked_nodes) for action, action_name in actions for result, marked_nodes in action(self.state)]
-        return expanded_nodes 
+        expanded_nodes = [BinSearchNode(result, self.actions, self.filters, self, action_name, self.cost+1, self.comparator, marked_nodes) for action, action_name in self.actions for result, marked_nodes in action(self.state)]
+        return [n for n in expanded_nodes if all([filter(n) for filter in self.filters])]
 
     def get_path(self):
         path = []
@@ -301,6 +251,14 @@ class BinSearchNode(Node):
             path.insert(0, current)
             current = current.parent
         return path
+
+    def __hash__(self) -> int:
+        return self.state.__hash__()
+    
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, BinSearchNode):
+            raise ValueError("Invalid comparison")
+        return self.state == other.state
     
     def print_step(self, step:int, justify:int = 0):
         if self.parent is not None:
@@ -311,15 +269,6 @@ class BinSearchNode(Node):
         else:
             print(f"  {str(self.state)}")
 
-            
-    def __hash__(self) -> int:
-        return self.state.__hash__()
-    
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, BinSearchNode):
-            raise ValueError("Invalid comparison")
-        return self.state == other.state
-
 
     def print_trace(node: 'BinSearchNode'):
         path = node.get_path()
@@ -328,7 +277,12 @@ class BinSearchNode(Node):
             node.print_step(i,justify)
         print(len(path) - 1)
 
-    def eta_heuristic(node: 'BinSearchNode') -> float:
+def end_with_eta(node : BinSearchNode):
+    leafs = node.state.root.find_all(lambda x: x.is_atomic())
+    return all([not x.is_eta_parameter() or y.is_eta_parameter() for x,y in zip(leafs, leafs[1:])])
+
+class Heuristics:
+    def point_free(node: BinSearchNode) -> float:
         if node.state.eta_level == 0:
             return 0
         else:
@@ -337,7 +291,7 @@ class BinSearchNode(Node):
             return node.state.eta_level + (eta_depth / (eta_depth + 1))
 
 
-    def eta2_heuristic(node: 'BinSearchNode') -> float:
+    def point_free2(node: BinSearchNode) -> float:
         if node.state.eta_level == 0:
             return 0
         else:
@@ -348,11 +302,95 @@ class BinSearchNode(Node):
             return node.state.eta_level + (eta_depth / (eta_depth + 1)) * 0.5 + (eta2_depth / (eta2_depth + 1)) * 0.5
             
 
-    def simplicity_heuristic(node: 'BinSearchNode') -> float:
+    def complexity(node: BinSearchNode) -> float:
         return str(node.state).count('(')
-    
-    def equivalence_count_heuristic(node: 'BinSearchNode') -> float:
+
+    def equivalence_count(node: BinSearchNode) -> float:
         return abs(len(node.state.root.find_all(lambda x: True)) - len(node.state.expected.find_all(lambda x: True)))
-    
-    def reverse_eta_heuristic(node: 'BinSearchNode') -> float:
+
+    def expanded_lambda(node: BinSearchNode) -> float:
         return len(node.state.leaves) - node.state.eta_level
+
+
+class Actions:
+    def equivalent_replace(exp1: BinExpNode, exp2: BinExpNode):
+        def replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
+            occurrences = tree.root.find_all(lambda x: x == exp1)
+            return [(tree.replace(o, exp2), [o]) for o in occurrences]
+        return replace, f"{exp1} -> {exp2}"
+
+    def parametrized_replace(exp1: BinExpNode, exp2: BinExpNode):
+        def replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
+            occurrences = tree.root.find_all(lambda x: x.shape_like(exp1, {}))
+            result = []
+            for o in occurrences:
+                params = {}
+                if not o.shape_like(exp1, params):
+                    raise ValueError("Invalid replacement")
+                replacement = exp2.copy()
+                replacement.replace_arguments(params)
+                result.append((tree.replace(o, replacement), [v for v in params.values()]))
+            return result
+        return replace, f"{exp1} -> {exp2}"
+ 
+    def eta_add_replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
+        eta_level = tree.eta_level
+        if eta_level < 30:
+            new_arg = BinExpNode(content=f"f{eta_level+1}")
+            new_root = BinExpNode(f=tree.root.copy(), arg=new_arg)
+            return [(tree.clone(new_root), [tree.root])]
+        return []
+    ETA_ADD = (eta_add_replace, "eta add")
+    
+
+    def eta_remove_replace(tree: BinExpTree) -> list[(BinExpTree, list[BinExpNode])]:
+        eta_level = tree.eta_level
+        if eta_level >= 1 and tree.root.arg.is_eta_parameter():
+            return [(tree.clone(tree.root.f.copy()), [tree.root.arg])]
+        return []
+    ETA_REMOVE = (eta_remove_replace, "eta remove")
+
+    def simetric_rule(rule_generator, exp1: BinExpNode, exp2: BinExpNode):
+        return [rule_generator(exp1, exp2), rule_generator(exp2, exp1)]
+    
+    def cn_replace(n: int):
+        return Actions.simetric_rule(Actions.equivalent_replace, BinExpNode.from_string(f"c{n}"), BinExpNode.from_string(f"c1 {'c1' * (n-1)}"))
+    
+    def hn_replace(n: int):
+        assert n >= 1
+        return Actions.simetric_rule(Actions.parametrized_replace, BinExpNode.from_string(f"h{n} $1 $2 " + " ".join([f"f{i+3}" for i in range(n)])), BinExpNode.from_string(f"$1 ($2 " + " ".join([f"${i+3}" for i in range(n)]) +")"))
+    
+    def vn_replace(n: int):
+        assert n >= 1
+        expression = f"${n+1} ${n+2}"
+        for i in range(n, 0, -1):
+            expression = f"${i} ({expression})"
+        return Actions.simetric_rule(Actions.parametrized_replace, BinExpNode.from_string(f"v{n} $1 $2 " + " ".join([f"f{i+3}" for i in range(n)])), BinExpNode.from_string(expression))
+        
+    C1_EVAL = simetric_rule(parametrized_replace, BinExpNode.from_string(f"c1 $1 $2 $3"), BinExpNode.from_string(f"$1 ($2 $3)"))
+
+
+
+def EquivalenceSearchNode(expression_string:str, expected_string:str) -> BinSearchNode:
+    actions = []
+    actions += [r for i in range(2,10) for r in Actions.cn_replace(i)]
+    actions += [Actions.ETA_ADD, Actions.ETA_REMOVE]
+    actions += Actions.C1_EVAL
+    # actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c1 c1 $1 $2 $3 $4"), BinExpNode.from_string("$1 $2 ($3 $4)"))[1:2]
+    # actions += simetric_rule(parametrized_replace,BinExpNode.from_string("c1 c1 c1 $1 $2 $3 $4"), BinExpNode.from_string("$1 ($2 $3 $4)"))[1:2]
+    return BinSearchNode.from_strings(expression_string, expected_string, actions, [], BinExpTree.is_solution_equivalence)
+    
+
+def PointFreeSearchNode(expression_string:str) -> BinSearchNode:
+    actions = [] 
+    actions += [Actions.ETA_REMOVE]
+    actions += Actions.C1_EVAL[1:2]
+    return BinSearchNode.from_strings(expression_string, expression_string, actions, [], BinExpTree.is_solution_point_free)
+
+def LambdaSearchNode(expression_string:str) -> BinSearchNode:
+    actions = [] 
+    actions += [Actions.ETA_ADD]
+    actions += Actions.C1_EVAL[:1]
+    return BinSearchNode.from_strings(expression_string, expression_string, actions, [], BinExpTree.is_solution_lambda)
+
+Actions.vn_replace(1)
